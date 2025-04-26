@@ -143,6 +143,32 @@ def get_bfcl(nsamples, seed, seqlen, tokenizer):
     func = [valdata[i]['function'] for i in range(len(valdata))]
     return trainloader, (valenc, val_gt, func)
 
+def get_lamp(nsamples, seed, seqlen, tokenizer):
+    train_questions = load_dataset('json', data_files={'train_question':"../PublicEval/LaMP_4/train/train_questions.json"}, split='train_question')
+    train_outputs = load_dataset('json', data_files={'train_output':"../PublicEval/LaMP_4/train/train_outputs.json"}, split='train_output')[0]
+    dev_questions = load_dataset('json', data_files={'dev_question':"../PublicEval/LaMP_4/valid/dev_questions.json"}, split='dev_question')
+    dev_outputs = load_dataset('json', data_files={'dev_output':"../PublicEval/LaMP_4/valid/dev_outputs.json"}, split='dev_output')[0]
+
+    random.seed(seed)
+    trainloader = []
+    for _ in range(nsamples):
+        i = random.randint(0, len(traindata) - 1)
+        train_item = train_questions[i]['input']
+        trainenc = tokenizer(train_item + train_outputs["golds"][i]["output"], return_tensors='pt', max_length=seqlen, truncation=True, padding='max_length', padding_side='left')
+        assert train_questions[i]['id'] == train_outputs['golds'][i]['id']
+        inp = trainenc.input_ids
+        tar = inp.clone()
+        query_len = tokenizer(train_item, return_tensors='pt').input_ids.shape[1]
+        tar[:, :query_len] = -100
+        trainloader.append((inp, tar))
+
+    val_data = [dev_questions[i]['input'] for i in range(500)]
+    print(val_data[0])
+    valenc = [tokenizer(val_item, return_tensors='pt').input_ids for val_item in val_data]
+    # valenc = TokenizerWrapper(valenc)
+    val_gt = [dev_outputs['golds'][i] for i in range(500)]
+    return trainloader, (valenc, val_gt)
+
 
 # Function to select the appropriate loader based on dataset name
 def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None):
@@ -154,3 +180,6 @@ def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None):
         return get_xlam(nsamples, seed, seqlen, tokenizer)
     if 'bfcl' in name:
         return get_bfcl(nsamples, seed, seqlen, tokenizer)
+    if 'lamp' in name:
+        return get_lamp(nsamples, seed, seqlen, tokenizer)
+    

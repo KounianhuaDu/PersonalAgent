@@ -1,5 +1,5 @@
 MODEL_PATH="../model_weights/Meta-Llama-3.1-8B-Instruct"
-for i in 0.3 0.4 0.5;
+for i in 0.3;
 do
     CUDA_VISIBLE_DEVICES=0 python main.py \
         --model "$MODEL_PATH" \
@@ -9,9 +9,10 @@ do
         --sparsity_ratio "$i" \
         --sparsity_type unstructured \
         --save save_test \
-        --dataset_name xlam \
-        --nsamples 256 \
-        --resume_from_checkpoint ./pruned_model
+        --dataset_name lamp \
+        --eval_dataset lamp \
+        # --nsamples 256 \
+        # --resume_from_checkpoint ./pruned_model
 
     # CUDA_VISIBLE_DEVICES=0 python main.py \
     #     --model "$MODEL_PATH" \

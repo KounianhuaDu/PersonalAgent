@@ -5,6 +5,8 @@ import torch.nn as nn
 import sys
 import json
 from colorama import Fore, init
+import evaluate
+
 # Import get_loaders function from data module within the same directory
 from .data import get_loaders 
 from ast_checker import ast_checker
@@ -12,33 +14,56 @@ from ast_checker import ast_checker
 init(autoreset=True)
 
 # Function to evaluate perplexity (ppl) on a specified model and tokenizer
-def eval_ppl(model, tokenizer, device=torch.device("cuda:0")):
-    # Set dataset
-    dataset = "xlam"
+def eval_ppl(model, tokenizer, eval_dataset, device=torch.device("cuda:0")):
+    # Set dataset 
+    accs = []
+    times = []
+    for dataset in eval_dataset:
+        print(f"Evaluating {dataset}")
+        _, testdata = get_loaders(dataset, seed=0, seqlen=model.seqlen, tokenizer=tokenizer)
+        with torch.no_grad():
+            st = time.time()
+            if dataset == 'xlam':
+                acc = eval_acc_xlam(model, tokenizer, xlamdata, device)
+            elif dataset == 'bfcl':
+                acc = eval_acc_bfcl(model, tokenizer, xlamdata, device)
+            elif dataset == 'lamp':
+                acc = eval_acc_lamp(model, tokenizer, xlamdata, device)
+            else:
+                raise ValueError(f"Unknown dataset: {dataset}")
+            accs.append(acc)
+            times.append(time.time() - st)
+                
+    return accs, times
 
-    # Print status
-    print(f"evaluating on {dataset}")
+def eval_acc_lamp(model, tokenizer, testdata, device=None):
+    testenc, gts = testdata
+    preds = []
+    labels = []
+    for query, gt in zip(testenc, gts):
+        print('=' * 100)
+        query = query.to(device)
+        print(query.shape)
+        attention_mask = torch.ones(
+                query.shape, dtype=torch.long, device=device
+            )
+        lm_logits = model.generate(
+            query, 
+            max_new_tokens=128,
+            attention_mask=attention_mask,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,)
+        s = tokenizer.decode(lm_logits[0][query.shape[1]:], skip_special_tokens=True)
+        print(Fore.YELLOW + s)
+        
+        preds.append(s.strip())
+        labels.append([gt.strip()])
+    rouge_metric = evaluate.load('rouge')
+    result_rouge = rouge_metric.compute(predictions=preds, references=labels)
+    result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
+    print(result)
+    return result["rouge"]
 
-    # Get the test loader
-    _, xlamdata = get_loaders(
-        'xlam', seed=0, seqlen=model.seqlen, tokenizer=tokenizer 
-    )
-    _, bfcldata = get_loaders(
-        'bfcl', seed=0, seqlen=model.seqlen, tokenizer=tokenizer 
-    )
-    
-    # testloader, gts = testdata
-
-    # Evaluate ppl in no grad context to avoid updating the model
-    with torch.no_grad():
-        st = time.time()
-        xlam_acc = eval_acc_xlam(model, tokenizer, xlamdata, device)
-        xt = time.time()
-        # print(xlam_acc, xt-st)
-        # exit()
-        bfcl_acc = eval_acc_bfcl(model, tokenizer, bfcldata, device)
-        bt = time.time()
-    return xlam_acc, bfcl_acc, xt - st, bt - xt
 
 def eval_acc_xlam(model, tokenizer, testdata, device=None):
     testenc, gts = testdata

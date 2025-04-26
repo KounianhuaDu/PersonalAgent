@@ -355,6 +355,13 @@ def main():
         type=int,
         help="populations size for evolution search",
     )
+    #### eval parameters #####
+    parser.add_argument(
+        "--eval_dataset",
+        type=str,
+        default='xlam',
+        help="Datasets for evaluation, saparated by ','"
+    )
 
     # Hyperparameters
     # delta_sparsity = 0.005
@@ -546,12 +553,13 @@ def main():
         tokenizer.save_pretrained(args.save_model)
         print(f"model saved to {args.save_model}")
 
-    xlam_acc, bfcl_acc, xt, bt = eval_ppl(model, tokenizer, device)
-    print(f"acc on xlam {xlam_acc:.4f}, time:{xt:.4f}")
-    print(f"acc on bfcl {bfcl_acc:.4f}")
+    eval_dataset = args.eval_dataset.split(",")
+    acc, t = eval_ppl(model, tokenizer, eval_dataset, device)
     with open(f"./res/{args.prune_method}_{args.sparsity_ratio}_{args.nsamples}.json", 'w') as f:
-        res = dict(xlamAcc=xlam_acc, bfclAcc=bfcl_acc, xlamTime=xt, bfclTime=bt)
-        json.dump(res, f)
+        for i in range(len(eval_dataset)):
+            print(f"acc on {eval_dataset[i]} {acc[i]:.4f}, time:{t[i]:.4f}")
+            res = dict(dataset=eval_dataset[i], acc=acc[i], time=t[i])
+            json.dump(res, f)
     sys.stdout.flush()
 
 
