@@ -517,7 +517,7 @@ def main():
             lengine = LayerEngine.from_string(args.graph_string)
             print(f"Current graph string: {args.graph_string}")
 
-        test_prune_wanda_outlier_use_var(
+        pt, mask = test_prune_wanda_outlier_use_var(
             args,
             model,
             tokenizer,
@@ -553,11 +553,15 @@ def main():
         tokenizer.save_pretrained(args.save_model)
         print(f"model saved to {args.save_model}")
 
+    params_num = sum(p.numel() for p in model.parameters())
     eval_dataset = args.eval_dataset.split(",")
-    acc, t = eval_ppl(model, tokenizer, eval_dataset, device)
-    with open(f"./res/{args.prune_method}_{args.sparsity_ratio}_{args.nsamples}.json", 'w') as f:
+    # acc, t = eval_ppl(model, tokenizer, eval_dataset, device)
+    with open(f"./res/{args.prune_method}_{args.sparsity_ratio}_{args.nsamples}.json", 'a') as f:
+        f.write('\n')
+        json.dump(dict(prune_time=pt, params=int(params_num - mask)), f)
+        exit()
         for i in range(len(eval_dataset)):
-            print(f"acc on {eval_dataset[i]} {acc[i]:.4f}, time:{t[i]:.4f}")
+            print(f"acc on {eval_dataset[i]} {acc[i]}, time:{t[i]:.4f}")
             res = dict(dataset=eval_dataset[i], acc=acc[i], time=t[i])
             json.dump(res, f)
     sys.stdout.flush()

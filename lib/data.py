@@ -143,35 +143,42 @@ def get_bfcl(nsamples, seed, seqlen, tokenizer):
     func = [valdata[i]['function'] for i in range(len(valdata))]
     return trainloader, (valenc, val_gt, func)
 
-def get_lamp(nsamples, seed, seqlen, tokenizer):
-    train_questions = load_dataset('json', data_files={'train_question':"../PublicEval/LaMP_4/train/train_questions.json"}, split='train_question')
-    train_outputs = load_dataset('json', data_files={'train_output':"../PublicEval/LaMP_4/train/train_outputs.json"}, split='train_output')[0]
+def get_lamp(nsamples, seed, seqlen, tokenizer, is_eval=False):
+    trainloader = []
     dev_questions = load_dataset('json', data_files={'dev_question':"../PublicEval/LaMP_4/valid/dev_questions.json"}, split='dev_question')
     dev_outputs = load_dataset('json', data_files={'dev_output':"../PublicEval/LaMP_4/valid/dev_outputs.json"}, split='dev_output')[0]
+    if not is_eval:
+        train_questions = load_dataset('json', data_files={'train_question':"../PublicEval/LaMP_4/train/train_questions.json"}, split='train_question')
+        train_outputs = load_dataset('json', data_files={'train_output':"../PublicEval/LaMP_4/train/train_outputs.json"}, split='train_output')[0]
 
-    random.seed(seed)
-    trainloader = []
-    for _ in range(nsamples):
-        i = random.randint(0, len(traindata) - 1)
-        train_item = train_questions[i]['input']
-        trainenc = tokenizer(train_item + train_outputs["golds"][i]["output"], return_tensors='pt', max_length=seqlen, truncation=True, padding='max_length', padding_side='left')
-        assert train_questions[i]['id'] == train_outputs['golds'][i]['id']
-        inp = trainenc.input_ids
-        tar = inp.clone()
-        query_len = tokenizer(train_item, return_tensors='pt').input_ids.shape[1]
-        tar[:, :query_len] = -100
-        trainloader.append((inp, tar))
+        random.seed(seed)
+        for _ in range(nsamples):
+            i = random.randint(0, len(train_questions) - 1)
+            train_item = train_questions[i]['input']
+            trainenc = tokenizer(train_item + train_outputs["golds"][i]["output"], return_tensors='pt', max_length=seqlen, truncation=True, padding='max_length', padding_side='left')
+            assert train_questions[i]['id'] == train_outputs['golds'][i]['id']
+            inp = trainenc.input_ids
+            tar = inp.clone()
+            query_len = tokenizer(train_item, return_tensors='pt').input_ids.shape[1]
+            tar[:, :query_len] = -100
+            trainloader.append((inp, tar))
 
-    val_data = [dev_questions[i]['input'] for i in range(500)]
+    # instruct = "\nThe headline should be a single line. Output ONLY the headline itself with no additional text, explanations, or formatting."
+    instruct = """\nformat the output EXACTLY like this:  
+        ----- HEADLINE START -----  
+        [Your generated headline]  
+        ----- HEADLINE END -----  
+        """
+    val_data = [dev_questions[i]['input'] + instruct for i in range(100)]
     print(val_data[0])
     valenc = [tokenizer(val_item, return_tensors='pt').input_ids for val_item in val_data]
     # valenc = TokenizerWrapper(valenc)
-    val_gt = [dev_outputs['golds'][i] for i in range(500)]
+    val_gt = [dev_outputs['golds'][i]['output'] for i in range(100)]
     return trainloader, (valenc, val_gt)
 
 
 # Function to select the appropriate loader based on dataset name
-def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None):
+def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None, is_eval=False):
     if 'wikitext2' in name:
         return get_wikitext2(nsamples, seed, seqlen, tokenizer)
     if "c4" in name:
@@ -181,5 +188,5 @@ def get_loaders(name, nsamples=128, seed=0, seqlen=2048, tokenizer=None):
     if 'bfcl' in name:
         return get_bfcl(nsamples, seed, seqlen, tokenizer)
     if 'lamp' in name:
-        return get_lamp(nsamples, seed, seqlen, tokenizer)
+        return get_lamp(nsamples, seed, seqlen, tokenizer, is_eval)
     

@@ -1,5 +1,5 @@
 MODEL_PATH="../model_weights/Meta-Llama-3.1-8B-Instruct"
-for i in 0.3;
+for i in 0.4;
 do
     CUDA_VISIBLE_DEVICES=0 python main.py \
         --model "$MODEL_PATH" \
@@ -11,8 +11,8 @@ do
         --save save_test \
         --dataset_name lamp \
         --eval_dataset lamp \
-        # --nsamples 256 \
-        # --resume_from_checkpoint ./pruned_model
+        --nsamples 128 \
+        # --resume_from_checkpoint "$MODEL_PATH"
 
     # CUDA_VISIBLE_DEVICES=0 python main.py \
     #     --model "$MODEL_PATH" \

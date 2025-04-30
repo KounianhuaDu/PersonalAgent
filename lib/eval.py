@@ -20,15 +20,15 @@ def eval_ppl(model, tokenizer, eval_dataset, device=torch.device("cuda:0")):
     times = []
     for dataset in eval_dataset:
         print(f"Evaluating {dataset}")
-        _, testdata = get_loaders(dataset, seed=0, seqlen=model.seqlen, tokenizer=tokenizer)
+        _, testdata = get_loaders(dataset, seed=0, seqlen=model.seqlen, tokenizer=tokenizer, is_eval=True)
         with torch.no_grad():
             st = time.time()
             if dataset == 'xlam':
-                acc = eval_acc_xlam(model, tokenizer, xlamdata, device)
+                acc = eval_acc_xlam(model, tokenizer, testdata, device)
             elif dataset == 'bfcl':
-                acc = eval_acc_bfcl(model, tokenizer, xlamdata, device)
+                acc = eval_acc_bfcl(model, tokenizer, testdata, device)
             elif dataset == 'lamp':
-                acc = eval_acc_lamp(model, tokenizer, xlamdata, device)
+                acc = eval_acc_lamp(model, tokenizer, testdata, device)
             else:
                 raise ValueError(f"Unknown dataset: {dataset}")
             accs.append(acc)
@@ -54,15 +54,17 @@ def eval_acc_lamp(model, tokenizer, testdata, device=None):
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.pad_token_id,)
         s = tokenizer.decode(lm_logits[0][query.shape[1]:], skip_special_tokens=True)
+        if "----- HEADLINE START -----" in s:
+            s = s.split("----- HEADLINE START -----")[1].split("----- HEADLINE END -----")[0]
         print(Fore.YELLOW + s)
         
         preds.append(s.strip())
         labels.append([gt.strip()])
-    rouge_metric = evaluate.load('rouge')
+    rouge_metric = evaluate.load('./evaluate/metrics/rouge')
     result_rouge = rouge_metric.compute(predictions=preds, references=labels)
     result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
     print(result)
-    return result["rouge"]
+    return result
 
 
 def eval_acc_xlam(model, tokenizer, testdata, device=None):
@@ -152,6 +154,7 @@ def eval_acc_bfcl(model, tokenizer, testdata, device=None):
         res.append(score['valid'])
     
     return sum(res) / len(res)
+
 def f1_score_with_order(pred, gt):
     if len(pred) == 0 or len(gt) == 0:
         return 0

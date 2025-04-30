@@ -1959,6 +1959,7 @@ def test_prune_wanda_outlier_use_var(
         args.dataset_name, nsamples=args.nsamples, seed=args.seed, seqlen=2048, tokenizer=tokenizer
     )
     print("dataset loading complete")
+    st = time.time()
     with torch.no_grad():
 
         if "OPT" in model.__class__.__name__:
@@ -2102,12 +2103,14 @@ def test_prune_wanda_outlier_use_var(
 
     use_cache = model.config.use_cache
     model.config.use_cache = False
-
+    period1 = time.time() - st
+    
     print("loading calibdation data")
     dataloader, _ = get_loaders(
         args.dataset_name, nsamples=args.nsamples, seed=args.seed, seqlen=2048, tokenizer=tokenizer
     )
     print("dataset loading complete")
+    st = time.time()
     with torch.no_grad():
 
         if "OPT" in model.__class__.__name__:
@@ -2127,6 +2130,7 @@ def test_prune_wanda_outlier_use_var(
     else:
         layers = model.model.layers
 
+    mask = 0
     for i in range(len(layers)):
         layer = layers[i]
 
@@ -2242,6 +2246,8 @@ def test_prune_wanda_outlier_use_var(
                     ]
                     W_mask.scatter_(1, indices, True)
             #             print ("W_mask",W_mask)
+            mask += W_mask.long().sum()
+            print(mask)
             subset[name].weight.data[W_mask] = 0  ## set weights to zero
 
         for j in range(args.nsamples):
@@ -2260,6 +2266,8 @@ def test_prune_wanda_outlier_use_var(
 
     model.config.use_cache = use_cache
     torch.cuda.empty_cache()
+    period2 = time.time() - st
+    return period1 + period2, mask
 
 
 
