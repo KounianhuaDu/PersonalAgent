@@ -14,16 +14,27 @@ Then change arguments in data_process.py to process the data.
 ## Generation
 For zeroshot and rag, run run_generation.py as below:
 
+- Zeroshot
+
 ```bash
 python run_generation.py --algo zeroshot --arch llama3 
 ```
 
+- RAG
+
+First, download the contriever model (already in [../model_weights/contriever]), cd the [./ranking] directory,  and run:
+
+```bash
+python ranking.py 
+```
+
+Then run
 ```bash
 python run_generation.py --algo rag --arch llama3 --k 5
 ```
 
 ## Evaluation
-Notice that evaluation should be down in network-type device.
+Notice that evaluation should be done in network-type device.
 
 ```bash
 python run_generation.py --algo zeroshot --arch llama3 --eval
