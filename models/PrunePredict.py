@@ -44,15 +44,16 @@ class PrunePredict:
             line['rag_input'] = raw_prompt
             qa_lines.append(line)
             
-        total_calibration_lines = [{'input': line['rag_input'], 'output': line['output']} for line in qa_lines] 
-        total_calibration_lines += [{'input': line['text'], 'output': line['title']} for line in profile_lines]
-        
+        qa_lines = [{'input': line['rag_input'], 'output': line['output']} for line in qa_lines] 
+        profile_lines = [{'input': line['text'], 'output': line['title']} for line in profile_lines]
         print(Fore.GREEN + f'Start to prune for user {u_id}.')
-        print(f"Total lines: {len(total_calibration_lines)}")
+        print(f"QA lines: {len(qa_lines)}")
+        print(f"Profile lines: {len(profile_lines)}")
+        
         if len(qa_lines)>128:
             calibration_lines = random.sample(qa_lines, 128)
         else:
-            calibration_lines = qa_lines + random.sample(profile_lines, 128 - len(total_calibration_lines))
+            calibration_lines = qa_lines + random.sample(profile_lines, min(128 - len(qa_lines), len(profile_lines)))
         print(f"Sampled {len(calibration_lines)} for calibration.")
         
         self.model, self.tokenizer = self.prune_func(self.args.base_model_addr, self.args.sparsity, calibration_lines, '')
@@ -103,6 +104,7 @@ class PrunePredict:
                 input_ids.shape, dtype=torch.long, device=self.model.device
             )
             # Generate the response
+            print(model_inputs.input_ids)
             generated_ids = self.model.generate(
                 model_inputs.input_ids,
                 attention_mask=attention_mask,
@@ -131,9 +133,11 @@ class PrunePredict:
         elif self.args.algo == 'rag':
             ranked_his = self.get_his(p_id, self.args.k)
             raw_prompt = self.build_rag_instruction(problem_instance['input'], ranked_his)
-            
+        
+        print(raw_prompt)
         output = self.generate_response_api(raw_prompt, top_k=1)
-
+        print(output)
+        exit()
         output_dict = {
             'id': p_id,
             'generation': output,
@@ -187,7 +191,7 @@ class PrunePredict:
         elif self.args.dataset == "LaMP_3":
             inp = f"What is the score of the following review on a scale of 1 to 5? just answer with 1, 2, 3, 4, or 5 without further explanation. review: {prompt}"
         elif self.args.dataset == "LaMP_4":
-            inp = f"Generate a headline for the following article: {prompt}"
+            inp = f"Generate a headline for the following article: {prompt}\n"
             inp += "Please only generate the most suitable one headline, except which no extra text is needed."
         elif self.args.dataset == "LaMP_5":
             inp = f"Generate a title for the following abstract of a paper: {prompt}"
@@ -204,7 +208,7 @@ class PrunePredict:
             inp = f"What is the score of the following review on a scale of 1 to 5? just answer with 1, 2, 3, 4, or 5 without further explanation. review: {prompt}"
         elif self.args.dataset == "LaMP_4":  
             inp = f"Generate a headline for the following article: {prompt}"
-            inp += f"For your reference, here are the user's past QA pairs:\n {his}"
+            inp += f"For your reference, here are the user's past QA pairs:\n {his}\n"
             inp += "Please only generate the most suitable one headline, except which no extra text is needed."
         elif self.args.dataset == "LaMP_5":
             inp = f"Generate a title for the following abstract of a paper: {prompt}"

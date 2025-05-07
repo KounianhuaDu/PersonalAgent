@@ -44,8 +44,18 @@ python run_generation.py --algo zeroshot --arch llama3 --eval
 python run_generation.py --algo rag --arch llama3 --k 5 --eval
 ```
 
-## Todos
-- Hydra implementation (in progress)
-- Pruning 
-    - Ensure that the pruning is "structral".
-    - Extract the def pruning_model(xxx) (See the feishu doc)
+## Prune and Generate
+Basically, we prune the base model for each user using the user's past queries, then use the pruned model to make personalized generation. The algorithm is located in [models/PrunePredict.py].
+
+To run the pipeline:
+
+For unstructured:
+
+```bash
+python prune_and_predict --algo rag  
+```
+
+For structured:
+```bash
+python prune_and_predict --algo rag  --structured
+```
