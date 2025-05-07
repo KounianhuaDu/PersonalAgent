@@ -1,2 +1,10 @@
 data/
 output/
+try.py
+pruned_model
+pruned_model_sparse
+output_block_sensitivity
+res
+wandb
+adapter_checkpoints
+hydra_adapter_checkpoints

@@ -3,10 +3,10 @@ import argparse
 from colorama import Fore, Back, Style, init
 from tqdm import tqdm
 import yaml
-import pickle as pkl
 from evaluators.eval_lamp import evaluate_task
 init(autoreset=True)
 import os
+
 
 
 def main(problems, model, k, output_path, task_name):
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     )
 
     ## backbone LLM
-    parser.add_argument("--arch", default="llama3")
+    parser.add_argument("--arch", default="gpt")
     parser.add_argument(
         "--modelweight",
         default="../model_weights",
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         "--algo", default="zeroshot", help="algorithm"
     )
     parser.add_argument(
-        "--k", type=int, default=5
+        "--k", type=int, default=1
     )
     
     ## vllm
@@ -123,41 +123,12 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
     print(args)
 
-    # Dataset loading
-    with open(os.path.join(args.data_path, args.dataset, 'processed', 'seen_test.pkl'), 'rb') as f:
-        data = pkl.load(f)
-        problems = []
-        for u_id, samples in data.items():
-            problems += samples
-    print(f"Got {len(problems)} problems.")
-    with open(os.path.join(args.data_path, args.dataset, 'processed', 'seen_test_ranked.json'), 'r') as f:
-        ranking_dict = json.load(f)
-    
-    # Path info
-    os.makedirs(os.path.join(args.out_path, f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
-    output_path = os.path.join(args.out_path, f"{args.algo}_{args.k}", args.dataset, 'generation.json')
-    os.makedirs(os.path.join(args.res_path, f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
-    evaluation_res = os.path.join(args.res_path, f"{args.algo}_{args.k}", args.dataset, 'res.json')
-    
-    if args.eval:
-        # Evaluation
-        results = evaluate_task(output_path)
-        print(results)
-        with open(evaluation_res, "w") as f:
-            json.dump(results, f)
-    else:
-        # Model
-        if args.algo == 'zeroshot':
-            from models.ZeroShot import ZeroShot
-            model = ZeroShot(args)
-        elif args.algo == 'rag':
-            from models.RAG import RAG
-            model = RAG(args, ranking_dict)
-    
-        main(problems, model, args.k, output_path, args.dataset)
-        
+    from models.Hydra import Hydra
+    with open('./configs/Hydra.yaml', "r") as f:
+        args.config = yaml.load(f, Loader=yaml.FullLoader)
+    #args.config = load_config()
+    model = Hydra(args)
         
     

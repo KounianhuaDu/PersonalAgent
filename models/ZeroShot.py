@@ -19,12 +19,10 @@ class ZeroShot:
             self.generator = MergeChat(args.arch, args)
         elif args.arch == "claude":
             self.generator = ClaudeChat(args.arch, args)
+        
         else:
             raise NotImplementedError
         
-        total_params = sum(p.numel() for p in self.generator.model.parameters())
-        print(Fore.GREEN + f"#Parameters: {total_params / 1e9:.2f}B")
-
         
     def generate(self, problem_instance, k=None):
         p_id = problem_instance['id']
@@ -35,7 +33,8 @@ class ZeroShot:
 
         output_dict = {
             'id': p_id,
-            'output': output
+            'generation': output,
+            'output': problem_instance['output']
         }
 
         return output_dict

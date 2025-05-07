@@ -22,7 +22,7 @@ import argparse
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 import json
-
+import pickle
 
 def print_trainable_parameters(model):
     """
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_steps", type=int, default=200)
     parser.add_argument("--lr_scheduler_type", type=str, default="linear")
     parser.add_argument("--epochs", type=int, default=3)
-    parser.add_argument("--total_batch_size", type=int, default=64)
+    parser.add_argument("--total_batch_size", type=int, default=16)
     parser.add_argument("--train_size", type=int, default=65536)
     parser.add_argument("--load_in_8bit", action="store_true", help="Load model 8 bit.")
     parser.add_argument("--per_device_eval_batch_size", type=int, default=1)
@@ -125,10 +125,9 @@ if __name__ == "__main__":
     tokenizer.padding_side = "right"
 
     # Prepare dataset
-    data_path = {
-        "train": os.path.join(args.train_data_root, args.data_name)
-    }
-    dataset = load_dataset("json", data_files=data_path)
+    data_path = os.path.join(args.train_data_root, args.data_name)
+    with open(data_path, 'rb') as f:
+        dataset = pickle.load(f)
 
     def return_prompt_and_responses(samples) -> Dict[str, str]:
         if "deepseek" in args.arch:
@@ -143,73 +142,75 @@ Assistant: {samples['output']}<|end▁of▁sentence|>"""
                 text = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>/nYou are a helpful planning assistant, and you should help to generate plans correctly and efficiently.<|eot_id|><|start_header_id|>user<|end_header_id|>/n{samples['input']}<|eot_id|><|start_header_id|>assistant<|end_header_id|>/n{samples['output']}<|eot_id|>
                 """
             else:
-                text = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>/nYou are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>/n{samples['text']}<|eot_id|><|start_header_id|>assistant<|end_header_id|>/n{samples['title']}<|eot_id|>
+                text = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>/nYou are a helpful assistant.<|eot_id|><|start_header_id|>user<|end_header_id|>/n{samples['profile']['text']}<|eot_id|><|start_header_id|>assistant<|end_header_id|>/n{samples['profile']['title']}<|eot_id|>
                 """
         return {"text": text}
 
-    train_dataset = dataset["train"][4]['profile']
-    train_dataset = Dataset.from_list(train_dataset).map(return_prompt_and_responses)
-
-    # Training config
-    BATCH_SIZE = min(args.total_batch_size, args.train_size)
-    EPOCHS = args.epochs
-    MAX_STEPS = max((len(train_dataset)) // BATCH_SIZE * EPOCHS, EPOCHS)
-    MICRO_BATCH_SIZE = args.per_device_eval_batch_size
-
-    GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
-
-    training_args = SFTConfig(
-        per_device_train_batch_size=args.per_device_eval_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size,
-        max_steps=MAX_STEPS,
-        logging_steps=1,
-        save_steps=1,
-        gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
-        gradient_checkpointing=False,
-        learning_rate=args.lr,
-        evaluation_strategy="steps",
-        eval_steps=args.eval_steps,
-        output_dir=os.path.join(args.model_out_root, args.tuned_model_file),
-        lr_scheduler_type=args.lr_scheduler_type,
-        optim="adamw_torch",
-        bf16=True,
-        #fp16=True,
-        remove_unused_columns=True,
-        seed=args.seed,
-        report_to="none",
-        dataset_text_field="text",
-    )
+    for user_id, samples in dataset.items():
+        print(f"Training for user {user_id} with {len(samples)} samples")
+        train_dataset = Dataset.from_list(samples).map(return_prompt_and_responses)
+        
+        # Training config
+        BATCH_SIZE = min(args.total_batch_size, args.train_size)
+        EPOCHS = args.epochs
+        MAX_STEPS = max((len(train_dataset)) // BATCH_SIZE * EPOCHS, EPOCHS)
+        MICRO_BATCH_SIZE = args.per_device_eval_batch_size
+        GRADIENT_ACCUMULATION_STEPS = BATCH_SIZE // MICRO_BATCH_SIZE
+        
+        training_args = SFTConfig(
+            per_device_train_batch_size=args.per_device_eval_batch_size,
+            per_device_eval_batch_size=args.per_device_eval_batch_size,
+            max_steps=MAX_STEPS,
+            logging_steps=1,
+            # save_steps=1,
+            gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
+            gradient_checkpointing=False,
+            learning_rate=args.lr,
+            # evaluation_strategy="steps",
+            # eval_steps=args.eval_steps,
+            output_dir=os.path.join(args.model_out_root, user_id),
+            lr_scheduler_type=args.lr_scheduler_type,
+            optim="adamw_torch",
+            bf16=True,
+            #fp16=True,
+            remove_unused_columns=True,
+            seed=args.seed,
+            report_to="none",
+            dataset_text_field="text",
+        )
 
     #model = prepare_model_for_kbit_training(model)
 
-    # peft_config = LoraConfig(
-    #     r=args.lora_r,
-    #     lora_alpha=args.lora_alpha,
-    #     lora_dropout=args.lora_dropout,
-    #     target_modules=[
-    #         "q_proj",
-    #         # "o_proj",
-    #         # "k_proj",
-    #         "v_proj",
-    #         # "gate_proj",
-    #         # "up_proj",
-    #         # "down_proj",
-    #     ],
-    #     # target_modules=["q_proj", "v_proj"],
-    #     bias="none",
-    #     task_type="CAUSAL_LM",
-    # )
+        peft_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            target_modules=[
+                "q_proj",
+                # "o_proj",
+                # "k_proj",
+                "v_proj",
+                # "gate_proj",
+                # "up_proj",
+                # "down_proj",
+            ],
+            # target_modules=["q_proj", "v_proj"],
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
 
-    # Trainer
-    print_trainable_parameters(model)
-    trainer = SFTTrainer(
-        model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=train_dataset,
-        tokenizer=tokenizer,
-        # peft_config=peft_config,
-    )
-    trainer.train()
-    os.makedirs(os.path.join(args.model_out_root, args.tuned_model_file), exist_ok=True)
-    trainer.save_model(os.path.join(args.model_out_root, args.tuned_model_file))
+        # Trainer
+        print_trainable_parameters(model)
+        trainer = SFTTrainer(
+            model,
+            args=training_args,
+            train_dataset=train_dataset,
+            # eval_dataset=train_dataset,
+            tokenizer=tokenizer,
+            # peft_config=peft_config,
+        )
+        trainer.train()
+        os.makedirs(os.path.join(args.model_out_root, user_id), exist_ok=True)
+        trainer.save_model(os.path.join(args.model_out_root, user_id))
+        
+        exit()

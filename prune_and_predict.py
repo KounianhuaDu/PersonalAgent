@@ -8,32 +8,6 @@ from evaluators.eval_lamp import evaluate_task
 init(autoreset=True)
 import os
 
-
-def main(problems, model, k, output_path, task_name):
-    outs = []
-    for problem_instance in tqdm(problems):
-        
-        # Generate Code & Trace
-        res = model.generate(problem_instance, k)
-        if res:
-            output_dict = res
-        else:
-            print(f"Generation Error for problem {problem_instance['id']}.")
-            continue
-        
-        outs.append(output_dict)
-    
-
-    with open(os.path.join(output_path), "w") as f:
-        json.dump(
-            {
-                "task": task_name,
-                "golds": outs,
-            },
-            f,
-        )
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Parser For Arguments",
@@ -68,6 +42,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--k", type=int, default=5
+    )
+    
+    ## Pruning arguments
+    parser.add_argument(
+        "--sparsity", default = 0.3, type = float
+    )
+    parser.add_argument(
+        "--structured", action="store_true", default=False
     )
     
     ## vllm
@@ -114,50 +96,56 @@ if __name__ == "__main__":
         help="If 'default', uses peft defaults. Use 'all' for our best guess for Llama models",
     )
     
-    # Generate or eval
-    parser.add_argument(
-        "--eval",
-        action="store_true",
-        default=False,
-        help="If True, enable eval mode.",
-    )
-
     args = parser.parse_args()
 
     print(args)
 
-    # Dataset loading
-    with open(os.path.join(args.data_path, args.dataset, 'processed', 'seen_test.pkl'), 'rb') as f:
-        data = pkl.load(f)
-        problems = []
-        for u_id, samples in data.items():
-            problems += samples
-    print(f"Got {len(problems)} problems.")
-    with open(os.path.join(args.data_path, args.dataset, 'processed', 'seen_test_ranked.json'), 'r') as f:
-        ranking_dict = json.load(f)
     
-    # Path info
-    os.makedirs(os.path.join(args.out_path, f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
-    output_path = os.path.join(args.out_path, f"{args.algo}_{args.k}", args.dataset, 'generation.json')
-    os.makedirs(os.path.join(args.res_path, f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
-    evaluation_res = os.path.join(args.res_path, f"{args.algo}_{args.k}", args.dataset, 'res.json')
+    args.base_model_addr = os.path.join(args.modelweight, 'Qwen1.5-14B-Chat')
     
-    if args.eval:
-        # Evaluation
-        results = evaluate_task(output_path)
-        print(results)
-        with open(evaluation_res, "w") as f:
-            json.dump(results, f)
-    else:
-        # Model
-        if args.algo == 'zeroshot':
-            from models.ZeroShot import ZeroShot
-            model = ZeroShot(args)
-        elif args.algo == 'rag':
-            from models.RAG import RAG
-            model = RAG(args, ranking_dict)
+    # Pruning
+    from models.PrunePredict import PrunePredict
+    model = PrunePredict(args)
+    u_ids = model.u_ids
     
-        main(problems, model, args.k, output_path, args.dataset)
-        
-        
+    output_dict = dict()
+    total_outputs = []
+    for idx, u_id in enumerate(u_ids):
+        print(Fore.RED + f"Trial {idx}.")
+        outputs = model.prune_for_one_user(u_id)
+        output_dict[u_id] = outputs
+        total_outputs += outputs
+        os.makedirs(os.path.join(args.out_path, args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}'), exist_ok=True)
+        with open(os.path.join(args.out_path, args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}', 'gen.json'), 'w') as f:
+            json.dump(outputs, f)
     
+    os.makedirs(os.path.join(args.out_path, args.dataset, f'Prune_total_{args.sparsity}_{args.structured}'), exist_ok=True)
+    with open(os.path.join(args.out_path, args.dataset, f'Prune_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'wb') as f:
+            pkl.dump(output_dict, f)
+    
+    print(Fore.RED + "All pruning finishes.")
+    
+    # Evaluate
+    import evaluate
+    from rouge import Rouge
+
+    def postprocess_text_generation(preds, labels):
+        preds = [pred.strip() for pred in preds]
+        labels = [[label.strip()] for label in labels]
+        return preds, labels
+
+    rouge_metric = evaluate.load("rouge", cache_dir='./evaluate_metrics/rouge')
+    print('Metric Loaded.')
+    def compute_metrics(decoded_preds, decoded_labels):
+        decoded_preds, decoded_labels = postprocess_text_generation(decoded_preds, decoded_labels)
+        result_rouge = rouge_metric.compute(predictions=decoded_preds, references=decoded_labels)
+        result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
+        return result
+    
+    preds = []
+    gts = []
+    for line in total_outputs:
+        preds.append(line['output'])
+        gts.append(line['target'])
+    res = compute_metrics(preds, gts)
+    print(res)

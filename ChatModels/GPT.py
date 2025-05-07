@@ -14,35 +14,30 @@ init(autoreset=True)
 class GPTChat:
     def __init__(self, model_name, args, save_mid_json=[]):
         self.name = model_name
-        self.is_chat = True
         self.args = args
-        self.time_stamps = []
-        self.ts_mode = args.ts_mode
 
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
-        API_KEY = "xxx" 
+        API_KEY = "sk-LUw3WneALWOxFqCo1359DdFc76A94765B20594F09c46Ad25" 
         openai.api_key = API_KEY
         os.environ["OPENAI_API_KEY"] = API_KEY
         os.environ["TIKTOKEN_CACHE_DIR"] = "./tmp"
 
         self.client = OpenAI()
-        self.client.base_url = "xxx"
-        self.width = args.width
-        
-        self.save_mid_json = save_mid_json
+        self.client.base_url = "https://az.gptplus5.com/v1"
 
     
     def generate_response_api(self, prompt, top_k, max_length=1024, system_message=None, temperature=0.0):
-        sys_msg = "You are a professional Python engineer."
+        '''sys_msg = "You are a professional Python engineer."
         if system_message:
-            sys_msg = system_message
+            sys_msg = system_message'''
         for ti in range(3):
             sleep_interval = 7
             try:
                 response = self.client.chat.completions.create(
                     model='gpt-4o-mini',
                     #model='gpt-3.5-turbo',
-                    messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": prompt}],
+                    #messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": prompt}],
                     max_tokens=max_length,  # 调整生成文本的长度
                     temperature=temperature,
                     # top_p=1,

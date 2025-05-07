@@ -60,10 +60,13 @@ def eval_acc_lamp(model, tokenizer, testdata, device=None):
         
         preds.append(s.strip())
         labels.append([gt.strip()])
-    rouge_metric = evaluate.load('./evaluate/metrics/rouge')
-    result_rouge = rouge_metric.compute(predictions=preds, references=labels)
-    result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
-    print(result)
+    try:
+        rouge_metric = evaluate.load('./evaluate/metrics/rouge')
+        result_rouge = rouge_metric.compute(predictions=preds, references=labels)
+        result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
+        print(result)
+    except:
+        result = {}
     return result
 
 

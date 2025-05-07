@@ -1,0 +1,30 @@
+task: LaMP_4
+# Data and output path
+full_train_dir: ['data/LaMP_4/processed/train_enhanced.pkl', 'data/LaMP_4/processed/train_ranked.json']
+unseen_test_dir: ['data/LaMP_4/processed/unseen_test_enhanced.pkl', 'data/LaMP_4/processed/unseen_test_ranked.json']
+seen_test_dir: ['output/LaMP_4/seen_test_hydra.pkl', 'data/LaMP_4/processed/seen_test_ranked.json']
+solution_output: output/generation/Hydra/LaMP_4/
+# rag or zeroshot
+use_rag: True
+k: 5
+# Number of pseudo generations
+num_return_sequences: 3
+# Seed, used to shuffle the training data. Fixed to ensure reproducibility
+seed: 0
+# Adapter config
+trainer:
+  model_name:  /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangweinan-24046/dk/model_weights/longformer-base-4096
+  tokenizer_name:  /inspire/hdd/ws-f4d69b29-e0a5-44e6-bd92-acf4de9990f0/public-project/zhangweinan-24046/dk/model_weights/longformer-base-4096
+  output_dir: hydra_adapter_checkpoints/LaMP_4
+  learning_rate: 2.0e-5
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 32
+  num_train_epochs: 2
+  weight_decay: 0.01
+  save_strategy: epoch
+  push_to_hub: False
+  gradient_accumulation_steps: 1
+  l2_reg_coef: 1.0
+  energy_temp: 5.0
+  add_special_tokens: False
+

@@ -432,6 +432,8 @@ def main():
     print("pruning starts")
 
     if args.resume_from_checkpoint:
+        pt = 0
+        mask = 0
         pass
     ############################ baseline   ############################
     elif args.prune_method == "wanda":
@@ -554,12 +556,24 @@ def main():
         print(f"model saved to {args.save_model}")
 
     params_num = sum(p.numel() for p in model.parameters())
+    print("Structed params:", params_num)
+    def count_nonzero_params(model):
+        total_params = 0
+        nonzero_params = 0
+        for name, param in model.named_parameters():
+            if param.requires_grad:  # 只统计可训练参数
+                total_params += param.numel()
+                nonzero_params += torch.sum(param != 0).item()
+        return nonzero_params, total_params
+
+    nonzero, total = count_nonzero_params(model)
+    print(f"剪枝后参数: {nonzero} | 原始参数: {total} | 稀疏度: {1 - nonzero/total:.2%}")
     eval_dataset = args.eval_dataset.split(",")
-    # acc, t = eval_ppl(model, tokenizer, eval_dataset, device)
+    acc, t = eval_ppl(model, tokenizer, eval_dataset, device)
     with open(f"./res/{args.prune_method}_{args.sparsity_ratio}_{args.nsamples}.json", 'a') as f:
-        f.write('\n')
-        json.dump(dict(prune_time=pt, params=int(params_num - mask)), f)
-        exit()
+        # f.write('\n')
+        # json.dump(dict(prune_time=pt, params=int(params_num - mask)), f)
+        # exit()
         for i in range(len(eval_dataset)):
             print(f"acc on {eval_dataset[i]} {acc[i]}, time:{t[i]:.4f}")
             res = dict(dataset=eval_dataset[i], acc=acc[i], time=t[i])

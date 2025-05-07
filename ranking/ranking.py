@@ -4,8 +4,9 @@ from transformers import AutoModel, AutoTokenizer
 import json
 import tqdm
 from utils import extract_strings_between_quotes, extract_after_article, extract_after_review, extract_after_paper, add_string_after_title, extract_after_colon, extract_after_abstract, extract_after_description
-from rank_bm25 import BM25Okapi
+import pickle as pkl
 import argparse
+import os
 
 
 def mean_pooling(token_embeddings, mask):
@@ -103,10 +104,9 @@ def classification_movies_query_corpus_maker(inp, profile, use_date):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input_data_addr", required = True)
-    parser.add_argument("--output_ranking_addr", required = True)
+    parser.add_argument("--data", default='../data')
     parser.add_argument("--task", required = True)
-    parser.add_argument("--ranker", required = True)
+    parser.add_argument("--ranker", default='contriever')
     parser.add_argument("--batch_size", type = int, default=16)
     parser.add_argument("--use_date", action='store_true')
     parser.add_argument("--contriever_checkpoint", default="../../model_weights/contriever")
@@ -114,9 +114,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     task = args.task
     ranker = args.ranker
-
-    with open(args.input_data_addr) as file:
-        dataset = json.load(file)
     
     #Preload the model to avoid repeated loading.
     if ranker == "contriever":
@@ -125,38 +122,47 @@ if __name__ == "__main__":
         contriver.eval()
         print('Contriever loaded.')
     
-    rank_dict = dict()
-
-    for data in tqdm.tqdm(dataset):
-        inp = data['input']
-        profile = data['profile']
-        if task == "LaMP_1":
-            corpus, query, ids = classification_citation_query_corpus_maker(inp, profile, args.use_date)
-        elif task == "LaMP_3":
-            corpus, query, ids = classification_review_query_corpus_maker(inp, profile, args.use_date)
-        elif task == "LaMP_2":
-            corpus, query = classification_movies_query_corpus_maker(inp, profile, args.use_date)
-        elif task == "LaMP_4":
-            corpus, query, ids = generation_news_query_corpus_maker(inp, profile, args.use_date)
-        elif task == "LaMP_5":
-            corpus, query, ids = generation_paper_query_corpus_maker(inp, profile, args.use_date)
-        elif task == "LaMP_7":
-            corpus, query, ids = parphrase_tweet_query_corpus_maker(inp, profile, args.use_date)
-        elif task == "LaMP_6":
-            corpus, query, ids = generation_avocado_query_corpus_maker(inp, profile, args.use_date)
-        
-        if ranker == "contriever":
-            randked_profile = retrieve_top_k_with_contriver(contriver, tokenizer, corpus, profile, query, len(profile), args.batch_size)
-        elif ranker == "bm25":
-            randked_profile = retrieve_top_k_with_bm25(corpus, profile, query, len(profile))
-        elif ranker == "recency":
-            profile = sorted(profile, key=lambda x: tuple(map(int, str(x['date']).split("-"))))
-            randked_profile = profile[::-1]
-
-        data['profile'] = randked_profile
-
-        rank_dict[data['id']] = randked_profile
-
+    train_file = os.path.join(args.data, args.task, 'processed', 'train.pkl')
+    seen_test_file = os.path.join(args.data, args.task, 'processed', 'seen_test.pkl')
+    unseen_test_file = os.path.join(args.data, args.task, 'processed', 'unseen_test.pkl')
     
-    with open(args.output_ranking_addr, "w") as file:
-        json.dump(rank_dict, file)
+    to_be_ranked = ['train.pkl', 'seen_test.pkl', 'unseen_test.pkl']
+    
+    for file in to_be_ranked:
+        with open(os.path.join(args.data, args.task, 'processed', file), 'rb') as f:
+            target_data = pkl.load(f)
+        rank_dict = dict()
+        for user_id, samples in target_data.items():
+            for data in tqdm.tqdm(samples):
+                inp = data['input']
+                profile = data['profile']
+                if task == "LaMP_1":
+                    corpus, query, ids = classification_citation_query_corpus_maker(inp, profile, args.use_date)
+                elif task == "LaMP_3":
+                    corpus, query, ids = classification_review_query_corpus_maker(inp, profile, args.use_date)
+                elif task == "LaMP_2":
+                    corpus, query = classification_movies_query_corpus_maker(inp, profile, args.use_date)
+                elif task == "LaMP_4":
+                    corpus, query, ids = generation_news_query_corpus_maker(inp, profile, args.use_date)
+                elif task == "LaMP_5":
+                    corpus, query, ids = generation_paper_query_corpus_maker(inp, profile, args.use_date)
+                elif task == "LaMP_7":
+                    corpus, query, ids = parphrase_tweet_query_corpus_maker(inp, profile, args.use_date)
+                elif task == "LaMP_6":
+                    corpus, query, ids = generation_avocado_query_corpus_maker(inp, profile, args.use_date)
+                
+                if ranker == "contriever":
+                    randked_profile = retrieve_top_k_with_contriver(contriver, tokenizer, corpus, profile, query, len(profile), args.batch_size)
+                elif ranker == "bm25":
+                    randked_profile = retrieve_top_k_with_bm25(corpus, profile, query, len(profile))
+                elif ranker == "recency":
+                    profile = sorted(profile, key=lambda x: tuple(map(int, str(x['date']).split("-"))))
+                    randked_profile = profile[::-1]
+
+                rank_dict[data['id']] = randked_profile
+
+        out_name = file.split('.')[0] + '_ranked.json'
+        with open(os.path.join(args.data, args.task, 'processed', out_name), 'w') as f:
+            json.dump(rank_dict, f)
+        
+        print(f"{out_name} generated.")

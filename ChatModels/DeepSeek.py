@@ -1,141 +1,56 @@
-# -*- coding:utf-8 _*-
+from .instruction import *
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import openai
+from openai import OpenAI
+import os
+import tiktoken
 import time
 import json
-from .instruction import *
-from typing import List, Literal, TypedDict
-from colorama import Fore, Back, Style, init
-from vllm import LLM, SamplingParams
-import os
-from peft import PeftModel
+from time import sleep
+from colorama import Fore, init
 
 init(autoreset=True)
 
 class DeepSeekChat:
-    def __init__(self, model_name, args):
+    def __init__(self, model_name, args, save_mid_json=[]):
         self.name = model_name
-        self.is_chat = True
         self.args = args
-        self.time_stamps = []
-        self.ts_mode = args.ts_mode
-        self.model_path = os.path.join(args.modelweight, "deepseek-coder-6.7b-instruct")
-        
-        if args.vllm:
-            self.model = LLM(
-                model=self.model_path, 
-                tensor_parallel_size=1, 
-                trust_remote_code=True, 
-                max_model_len=21552, 
-                gpu_memory_utilization=0.9
-                )
-            self.tokenizer = self.model.get_tokenizer()
-        else:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_path, use_fast=False, padding_side="left"
-            )
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, device_map='auto')
-            
-            if args.lora:
-                from peft import LoraConfig, TaskType, get_peft_model
+        self.client = OpenAI(api_key="sk-3e73ea27b4904aa1919236ac0e41b4a1", base_url="https://api.deepseek.com")
 
-                if args.lora_target_modules == "all":
-                    lora_target_modules = ["k_proj", "q_proj", "v_proj", "up_proj", "down_proj", "gate_proj"]
-                elif args.lora_target_modules.lower() == "default":
-                    lora_target_modules = None
-                else:
-                    lora_target_modules = args.lora_target_modules.split(",")
-
-                peft_config = LoraConfig(
-                    task_type=TaskType.CAUSAL_LM, inference_mode=False,
-                    r=args.lora_rank,
-                    lora_alpha=args.lora_alpha,
-                    lora_dropout=args.lora_dropout,
-                    target_modules=lora_target_modules
-                )
-                self.model = get_peft_model(self.model, peft_config)
-                print(Fore.RED + "Set Lora model.")
-            if args.resume:
-                print(Fore.RED + "RESUME")
-                #self.model.load_state_dict(
-                #    torch.load(
-                #        os.path.join(args.model_archive, "policy.pt"),
-                #        map_location="cpu", weights_only=False)["state"])
-                #if args.lora: self.model = self.model.merge_and_unload()
-                #print(f"loaded pre-trained weights from {args.model_archive}.")
-                resume_path = os.path.join(args.tuned_path, args.model_file)
-                check_point_files = os.listdir(resume_path)
-                check_points = []
-                for check in check_point_files:
-                    if check.startswith('check'):
-                        check_points.append(check)
-                check_point = os.path.join(resume_path, check_points[-1])
-
-                self.model = PeftModel.from_pretrained(self.model, check_point)
-                self.model = self.model.merge_and_unload()
-                print(Fore.RED + f"Tuned model loaded from {check_point}.")
-                time.sleep(3)
-
-        self.terminal_token = self.tokenizer.eos_token
-        self.width = args.width
-        # Cache initialization (if needed)
-        
-        self.args = args
-
-    def generate_response_api(
-            self, 
-            prompt, 
-            top_k, 
-            max_length=1024, 
-            system_message=None, 
-            temperature=0.01
-        ):
-        sys_msg = "You are a professional Python engineer."
-        print(Fore.GREEN + sys_msg + prompt)
-
+    def generate_response_api(self, prompt, top_k, max_length=512, system_message=None, temperature=0.0):
+        '''sys_msg = "You are a professional Python engineer."
         if system_message:
-            sys_msg = system_message
-
-        chat = f"<｜begin▁of▁sentence｜>{sys_msg}\nUser: {prompt}\n\nAssistant: "
-
-        if self.args.vllm:
-            output = self.model.generate(
-                prompts=chat,
-                sampling_params=SamplingParams(
+            sys_msg = system_message'''
+        for ti in range(3):
+            sleep_interval = 7
+            try:
+                response = self.client.chat.completions.create(
+                    model='deepseek-chat',
+                    #model='gpt-3.5-turbo',
+                    #messages=[{"role": "system", "content": sys_msg}, {"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_length,  # 调整生成文本的长度
                     temperature=temperature,
-                    top_k=top_k,
-                    max_tokens=max_length
+                    # top_p=1,
+                    #logprobs=True,
+                    #top_logprobs=top_k
                 )
-            )
+                message = response.choices[0].message.content
+                #log_prob = response.choices[0].logprobs.content  # 是一个length等于top k的list，每个位置是一个list{token: .., logprob:.., bytes:..}
 
-            log_probs_for_generated_tokens = (
-                None  # Initialize to handle cases where it's not needed
-            )
-            message = output[0].outputs[0].text
-        else:
-            model_inputs = self.tokenizer([chat], return_tensors="pt").to(self.model.device)
-            input_ids = self.tokenizer.encode(chat,return_tensors='pt')
-            attention_mask = torch.ones(input_ids.shape,dtype=torch.long, device=self.model.device)
-            # Generate the response
-            generated_ids = self.model.generate(
-                model_inputs.input_ids,
-                attention_mask=attention_mask,
-                max_new_tokens=1024,
-                pad_token_id=self.tokenizer.eos_token_id   # Setting `pad_token_id` to `eos_token_id`:151643 for open-end generation.
-            )
-            generated_ids = [
-                output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-            ]
-
-            # Decode the response
-            message = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-
-            log_probs_for_generated_tokens = (
-                None  # Initialize to handle cases where it's not needed
-            )
-
-        return message
-
+                #log_prob = [[1.0]]
+                '''input_token_num = len(self.tokenizer.encode(prompt, allowed_special={'<|endoftext|>'}))
+                output_token_num = len(self.tokenizer.encode(message, allowed_special={'<|endoftext|>'}))
+                self.args.total_input_token_num += input_token_num
+                self.args.total_output_token_num += output_token_num'''
+            except Exception as e:
+                print("GPT Error:", str(e))
+                sleep_t = sleep_interval * (ti + 1)
+                print(f"get {ti +1}, error: {e}, sleep {sleep_t} seconds")
+                sleep(sleep_t)
+                continue
+            return message
+        
     def extract_thoughts(self, response_text, depth):
         if '```json' in response_text:
             response_text = response_text.split('```json')[1].split('```')[0]
@@ -181,56 +96,49 @@ class DeepSeekChat:
         print(Fore.RED + "Extracted lines end.")'''
         return top_lines_text, top_scores
 
+
     def get_top_k_rationale_predict(self, state, depth, with_verbal=False):
         with torch.no_grad():
-            '''encoded_ids = state
-            input_ids = torch.LongTensor(encoded_ids).unsqueeze(0).to(self.device)
-
-            # Decode input tokens to get the input prompt
-            input_prompt = self.tokenizer.decode(input_ids[0].tolist())'''
             input_prompt = state
 
-            with_instru_input_prompt = input_prompt + build_intermediate_instruct(
-                depth, self.args.width
-            )
+            with_instru_input_prompt = input_prompt + build_intermediate_instruct(depth, self.args.width)
 
-            print("\n-----------------Input (Generate Thought)-----------------")
+            print('\n-----------------Input (Generate Thought)-----------------')
             print(Fore.GREEN + with_instru_input_prompt)
 
-            response_text = self.generate_response_api(
-                with_instru_input_prompt, top_k=1
-            )
+            response_text = self.generate_response_api(with_instru_input_prompt, top_k=1, max_length=1024, temperature=0.0)
             print('\n-----------------Output (Thought)-----------------')
             print(Fore.YELLOW + response_text)
 
             top_lines, top_scores = self.extract_thoughts(response_text, depth)
 
             return top_lines, top_scores
-
-    def get_rationale_predicted_sequence(
-        self, state, problem, max_length=None, renewchild_count=0
-    ):
+    
+    def get_rationale_predicted_sequence(self, state, problem, horizon=None, renewchild_count=0):
         with torch.no_grad():
-            '''
-            input_ids = state  # as a list
-            input_ids = torch.LongTensor(input_ids).unsqueeze(0).to(self.device)
-            input_prompt = self.tokenizer.decode(input_ids[0], skip_special_tokens=True)
-            '''
-            input_prompt = state
-            previous_thoughts = input_prompt.split("-----Clues-----")[-1]
 
+            input_prompt = state
+            previous_thoughts = input_prompt.split('-----Clues-----')[-1]
+            
             with_instru_input_prompt = get_reward_instruct(previous_thoughts, problem)
 
-            print(
-                "\n-----------------Input with Thought (Generate Code)-----------------"
-            )
+            print('\n-----------------Input with Thought (Generate Code)-----------------')
             print(Fore.GREEN + with_instru_input_prompt)
+            
+            response_text = self.generate_response_api(with_instru_input_prompt, top_k=1, max_length=1024)
 
-            response_text = self.generate_response_api(
-                with_instru_input_prompt, top_k=1
-            )
-
-            print("\n-----------------Output (Code)-----------------")
+            print('\n-----------------Output (Code)-----------------')
             print(Fore.YELLOW + response_text)
-
+            
             return response_text
+
+
+
+class WithProbReturn:
+    def __init__(self, sequences, scores, attentions, hidden_states, beam_indices=None, top_tokens=None):
+        self.sequences = sequences
+        self.scores = scores
+        self.attentions = attentions
+        self.hidden_states = hidden_states
+        self.beam_indices = beam_indices
+        self.top_tokens = top_tokens

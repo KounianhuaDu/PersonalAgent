@@ -145,11 +145,20 @@ def get_bfcl(nsamples, seed, seqlen, tokenizer):
 
 def get_lamp(nsamples, seed, seqlen, tokenizer, is_eval=False):
     trainloader = []
-    dev_questions = load_dataset('json', data_files={'dev_question':"../PublicEval/LaMP_4/valid/dev_questions.json"}, split='dev_question')
-    dev_outputs = load_dataset('json', data_files={'dev_output':"../PublicEval/LaMP_4/valid/dev_outputs.json"}, split='dev_output')[0]
+    # dev_questions = load_dataset('json', data_files={'dev_question':"./data/LaMP_4/valid/dev_questions.json"}, split='dev_question')
+    # dev_outputs = load_dataset('json', data_files={'dev_output':"./data/LaMP_4/valid/dev_outputs.json"}, split='dev_output')[0]
+    # if not is_eval:
+    #     train_questions = load_dataset('json', data_files={'train_question':"./data/LaMP_4/train/train_questions.json"}, split='train_question')
+    #     train_outputs = load_dataset('json', data_files={'train_output':"./data/LaMP_4/train/train_outputs.json"}, split='train_output')[0]
+    with open("./data/LaMP_4/valid/dev_questions.json", 'r') as f:
+        dev_questions = json.load(f)
+    with open("./data/LaMP_4/valid/dev_outputs.json", 'r') as f:
+        dev_outputs = json.load(f)
     if not is_eval:
-        train_questions = load_dataset('json', data_files={'train_question':"../PublicEval/LaMP_4/train/train_questions.json"}, split='train_question')
-        train_outputs = load_dataset('json', data_files={'train_output':"../PublicEval/LaMP_4/train/train_outputs.json"}, split='train_output')[0]
+        with open("./data/LaMP_4/train/train_questions.json", 'r') as f:
+            train_questions = json.load(f)
+        with open("./data/LaMP_4/train/train_outputs.json", 'r') as f:
+            train_outputs = json.load(f)
 
         random.seed(seed)
         for _ in range(nsamples):

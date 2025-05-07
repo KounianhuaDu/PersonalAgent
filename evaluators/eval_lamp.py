@@ -67,21 +67,18 @@ def create_metric_rouge():
         return result
     return compute_metrics
 
-def evaluate_task(predictions_dir, gold_dir):
-    with open(predictions_dir, 'r') as f:
-        predictions = json.load(f)
-    with open(gold_dir, 'r') as f:
-        golds = json.load(f)
-        
-    golds_dict = {y['id']:y['output'] for y in golds}
-    preds_dict = {x['id']:x['output'] for x in predictions['golds']}
+def evaluate_task(predictions_dir):
+    with open(predictions_dir, 'rb') as f:
+        data = json.load(f)
     
-    task_name = predictions['task']
+    task_name = data['task']
+    lines = data['golds']
     
-    gold_ids = set([sample['id'] for sample in golds])
-    pred_ids = set([sample['id'] for sample in predictions['golds']])
-
-    assert gold_ids == pred_ids, "Predictions ids and gold ids do not match."
+    preds = []
+    golds = []
+    for line in lines:
+        preds.append(line['generation'])
+        golds.append(line['output'])
 
     if task_name in ["LaMP_1", "LaMP_2"]:
         metric = create_metric_f1_accuracy(self._get_labels(task_name))
@@ -90,9 +87,6 @@ def evaluate_task(predictions_dir, gold_dir):
     else:
         metric = create_metric_rouge()
     
-    gold_ids = list(gold_ids)
-    golds = [golds_dict[id] for id in gold_ids]
-    preds = [preds_dict[id] for id in gold_ids]
     return metric(preds, golds)
     
 class LaMPEvaluation(object):
