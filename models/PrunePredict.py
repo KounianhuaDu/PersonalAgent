@@ -73,7 +73,7 @@ class PrunePredict:
         self,
         prompt: str,
         top_k: int,
-        max_length: int = 256,
+        max_length: int = 64,
         system_message: str = None,
         temperature: float = 0,
     ):
@@ -104,7 +104,7 @@ class PrunePredict:
                 input_ids.shape, dtype=torch.long, device=self.model.device
             )
             # Generate the response
-            print(model_inputs.input_ids)
+            #print(model_inputs.input_ids)
             generated_ids = self.model.generate(
                 model_inputs.input_ids,
                 attention_mask=attention_mask,
@@ -134,10 +134,11 @@ class PrunePredict:
             ranked_his = self.get_his(p_id, self.args.k)
             raw_prompt = self.build_rag_instruction(problem_instance['input'], ranked_his)
         
-        print(raw_prompt)
+        #print(raw_prompt)
         output = self.generate_response_api(raw_prompt, top_k=1)
         print(output)
-        exit()
+        print(output.split('\n')[0])
+        #exit()
         output_dict = {
             'id': p_id,
             'generation': output,
@@ -209,7 +210,7 @@ class PrunePredict:
         elif self.args.dataset == "LaMP_4":  
             inp = f"Generate a headline for the following article: {prompt}"
             inp += f"For your reference, here are the user's past QA pairs:\n {his}\n"
-            inp += "Please only generate the most suitable one headline, except which no extra text is needed."
+            inp += "Please ONLY generate the most suitable one headline, except which NO EXTRA TEXT is needed."
         elif self.args.dataset == "LaMP_5":
             inp = f"Generate a title for the following abstract of a paper: {prompt}"
         elif self.args.dataset == "LaMP_6":

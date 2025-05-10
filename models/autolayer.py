@@ -436,17 +436,17 @@ class LayerEngine:
         if self._graph_structure["W_STICK_OP"] is not None:
             for operation in self._graph_structure["W_STICK_OP"]:
                 W = operation(W)
-                print(operation.__name__, W)
+                ##print(operation.__name__, W)
 
         if self._graph_structure["W_DEFORM_OP"] is not None:
             for operation in self._graph_structure["W_DEFORM_OP"]:
                 W = operation(W)
-                print(operation.__name__, W)
+                ##print(operation.__name__, W)
 
         if self._graph_structure["W_POST_OP"] is not None:
             for operation in self._graph_structure["W_POST_OP"]:
                 W = operation(W)
-                print(operation.__name__, W)
+                ##print(operation.__name__, W)
 
         # if W is scalar return it
         if isinstance(W, torch.Tensor) and W.numel() == 1:

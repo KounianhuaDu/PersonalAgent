@@ -2015,10 +2015,14 @@ def test_prune_wanda_outlier_use_var(
                         inps[j].unsqueeze(0), attention_mask=attention_mask
                     )[0]
                 else:
+                    print(inps[j].shape)
+                    print(position_ids)
+                    # print(attention_mask.shape)
+                    print(attention_mask)
                     outs[j] = layer(
                         inps[j].unsqueeze(0),
-                        attention_mask=attention_mask,
-                        position_ids=position_ids,
+                        attention_mask=torch.ones(1, 2048, dtype=torch.long).to("cuda"),
+                        position_ids=position_ids if position_ids is not None else torch.arange(model.seqlen).unsqueeze(0),
                     )[0]
         for h in handles:
             h.remove()

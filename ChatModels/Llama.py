@@ -19,7 +19,10 @@ class LlamaChat:
         use_vllm = args.vllm
         self.name = model_name
         self.args = args
-        self.model_path = os.path.join(args.modelweight, "Meta-Llama-3.1-8B-Instruct")
+        if model_name == "llama3-8b":
+            self.model_path = os.path.join(args.modelweight, "Meta-Llama-3.1-8B-Instruct")
+        elif model_name == "llama3-3b":
+            self.model_path = os.path.join(args.modelweight, "Llama-3.2-3B-Instruct")
 
         if use_vllm:
             self.model = LLM(

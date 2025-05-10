@@ -19,7 +19,7 @@ class QwenChat:
         use_vllm = args.vllm
         self.name = model_name
         self.args = args
-        self.model_path = os.path.join(args.modelweight, "Qwen3-8B")
+        self.model_path = os.path.join(args.modelweight, 'Qwen3-8B')
 
         if use_vllm:
             self.model = LLM(

@@ -50,7 +50,6 @@ Basically, we prune the base model for each user using the user's past queries, 
 To run the pipeline:
 
 For unstructured:
-
 ```bash
 python prune_and_predict --algo rag  
 ```

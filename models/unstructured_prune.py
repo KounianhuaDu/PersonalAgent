@@ -5,6 +5,9 @@ from transformers import (
     LlamaForCausalLM,
     LlamaTokenizer,
 )
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel
+from colorama import Fore 
+
 import torch
 import torch.nn as nn
 import json
@@ -105,7 +108,9 @@ def prepare_calibration_input_opt(model, dataloader, device):
 def prepare_calibration_input(model, dataloader, device, n_samples):
     use_cache = model.config.use_cache
     model.config.use_cache = False
-    layers = model.model.layers
+    #layers = model.model.layers
+    #print(model)
+    layers = model.base_model.model.model.layers
 
     # dev = model.hf_device_map["model.embed_tokens"]
     if "model.embed_tokens" in model.hf_device_map:
@@ -175,8 +180,25 @@ def prune_model(base_model_addr, sparsity_ratio, calibration_data, save_model_pa
         low_cpu_mem_usage=True,
         device_map="auto",
     )
+    peft_config = LoraConfig(
+        r=8,
+        lora_alpha=16,
+        lora_dropout=0.05,
+        target_modules=[
+            "q_proj",
+            "v_proj"
+        ],
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    model = get_peft_model(model, peft_config)
+    model = PeftModel.from_pretrained(model, './tuned_models/cloud0510Lamp4/checkpoint-39')
+    model = model.merge_and_unload()
+    print(Fore.RED + "Cloud lora model merged.")
+
     model.seqlen = 2048
     model.eval()
+    
     tokenizer = AutoTokenizer.from_pretrained(base_model_addr, use_fast=False)
     tokenizer.pad_token = tokenizer.eos_token
     device = torch.device("cuda:0")
@@ -230,7 +252,7 @@ def prune_model(base_model_addr, sparsity_ratio, calibration_data, save_model_pa
     if "opt" in base_model_addr:
         layers = model.model.decoder.layers
     else:
-        layers = model.model.layers
+        layers = model.base_model.model.model.layers
 
     for i in range(len(layers)):
         layer = layers[i]
@@ -279,7 +301,7 @@ def prune_model(base_model_addr, sparsity_ratio, calibration_data, save_model_pa
 
         for name in subset:
 
-            print(f"pruning layer {i} name {name}")
+            ##print(f"pruning layer {i} name {name}")
             W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(
                 wrapped_layers[name].scaler_row.reshape((1, -1))
             )
@@ -318,7 +340,7 @@ def prune_model(base_model_addr, sparsity_ratio, calibration_data, save_model_pa
         #         layer_wmetric, out_ratio, name=f"layer_{i}"
         #     )
         #     print("layer outlier ratio", out_ratio, out_ratio_layer)
-        print(layer_wmetric)
+        ##print(layer_wmetric)
         out_ratio_layer = lengine.compute_importance(layer_wmetric)
 
         all_layer_ratio.append(out_ratio_layer)
@@ -397,7 +419,7 @@ def prune_model(base_model_addr, sparsity_ratio, calibration_data, save_model_pa
         layers = model.model.decoder.layers
 
     else:
-        layers = model.model.layers
+        layers = model.base_model.model.model.layers
 
     mask = 0
     for i in range(len(layers)):
@@ -446,7 +468,7 @@ def prune_model(base_model_addr, sparsity_ratio, calibration_data, save_model_pa
 
         for name in subset:
 
-            print(f"pruning layer {i} name {name}")
+            ##print(f"pruning layer {i} name {name}")
             W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(
                 wrapped_layers[name].scaler_row.reshape((1, -1))
             )

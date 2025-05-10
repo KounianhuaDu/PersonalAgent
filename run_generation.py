@@ -137,10 +137,10 @@ if __name__ == "__main__":
         ranking_dict = json.load(f)
     
     # Path info
-    os.makedirs(os.path.join(args.out_path, f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
-    output_path = os.path.join(args.out_path, f"{args.algo}_{args.k}", args.dataset, 'generation.json')
-    os.makedirs(os.path.join(args.res_path, f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
-    evaluation_res = os.path.join(args.res_path, f"{args.algo}_{args.k}", args.dataset, 'res.json')
+    os.makedirs(os.path.join(args.out_path, f"{args.arch}_{args.lora}", f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
+    output_path = os.path.join(args.out_path, f"{args.arch}_{args.lora}", f"{args.algo}_{args.k}", args.dataset, 'generation.json')
+    os.makedirs(os.path.join(args.res_path, f"{args.arch}_{args.lora}", f"{args.algo}_{args.k}", args.dataset), exist_ok=True)
+    evaluation_res = os.path.join(args.res_path, f"{args.arch}_{args.lora}", f"{args.algo}_{args.k}", args.dataset, 'res.json')
     
     if args.eval:
         # Evaluation

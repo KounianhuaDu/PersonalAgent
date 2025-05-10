@@ -95,57 +95,82 @@ if __name__ == "__main__":
         default="all",
         help="If 'default', uses peft defaults. Use 'all' for our best guess for Llama models",
     )
-    
+
+    # Generate or eval
+    parser.add_argument(
+        "--eval",
+        action="store_true",
+        default=False,
+        help="If True, enable eval mode.",
+    )
+
     args = parser.parse_args()
 
     print(args)
 
     
-    args.base_model_addr = os.path.join(args.modelweight, 'Qwen1.5-14B-Chat')
+    args.base_model_addr = os.path.join(args.modelweight, 'Meta-Llama-3.1-8B-Instruct')
     
-    # Pruning
-    from models.PrunePredict import PrunePredict
-    model = PrunePredict(args)
-    u_ids = model.u_ids
-    
-    output_dict = dict()
-    total_outputs = []
-    for idx, u_id in enumerate(u_ids):
-        print(Fore.RED + f"Trial {idx}.")
-        outputs = model.prune_for_one_user(u_id)
-        output_dict[u_id] = outputs
-        total_outputs += outputs
-        os.makedirs(os.path.join(args.out_path, args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}'), exist_ok=True)
-        with open(os.path.join(args.out_path, args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}', 'gen.json'), 'w') as f:
-            json.dump(outputs, f)
-    
-    os.makedirs(os.path.join(args.out_path, args.dataset, f'Prune_total_{args.sparsity}_{args.structured}'), exist_ok=True)
-    with open(os.path.join(args.out_path, args.dataset, f'Prune_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'wb') as f:
-            pkl.dump(output_dict, f)
-    
-    print(Fore.RED + "All pruning finishes.")
-    
-    # Evaluate
-    import evaluate
-    from rouge import Rouge
+    if not args.eval:
+        # Pruning
+        from models.PrunePredict import PrunePredict
+        model = PrunePredict(args)
+        u_ids = model.u_ids
+        
+        output_dict = dict()
+        total_outputs = []
+        for idx, u_id in enumerate(u_ids):
+            print(Fore.RED + f"Trial {idx}.")
+            outputs = model.prune_for_one_user(u_id)
+            output_dict[u_id] = outputs
+            total_outputs += outputs
+            os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}'), exist_ok=True)
+            with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}', 'gen.json'), 'w') as f:
+                json.dump(outputs, f)
+        
+        os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_total_{args.sparsity}_{args.structured}'), exist_ok=True)
+        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'wb') as f:
+                pkl.dump(output_dict, f)
+        
+        print(Fore.RED + "All pruning finishes.")
+    else:
+        # Evaluate
+        import evaluate
+        from rouge import Rouge
+        
+        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'rb') as f:
+            output_dict = pkl.load(f)
+        
+        total_outputs = []
+        for key, values in output_dict.items():
+            total_outputs += values
 
-    def postprocess_text_generation(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [[label.strip()] for label in labels]
-        return preds, labels
+        def postprocess_text_generation(preds, labels):
+            preds = [pred.strip() for pred in preds]
+            labels = [[label.strip()] for label in labels]
+            return preds, labels
 
-    rouge_metric = evaluate.load("rouge", cache_dir='./evaluate_metrics/rouge')
-    print('Metric Loaded.')
-    def compute_metrics(decoded_preds, decoded_labels):
-        decoded_preds, decoded_labels = postprocess_text_generation(decoded_preds, decoded_labels)
-        result_rouge = rouge_metric.compute(predictions=decoded_preds, references=decoded_labels)
-        result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
-        return result
-    
-    preds = []
-    gts = []
-    for line in total_outputs:
-        preds.append(line['output'])
-        gts.append(line['target'])
-    res = compute_metrics(preds, gts)
-    print(res)
+        rouge_metric = evaluate.load("rouge", cache_dir='./evaluate_metrics/rouge')
+        print('Metric Loaded.')
+        def compute_metrics(decoded_preds, decoded_labels):
+            decoded_preds, decoded_labels = postprocess_text_generation(decoded_preds, decoded_labels)
+            result_rouge = rouge_metric.compute(predictions=decoded_preds, references=decoded_labels)
+            result = {"rouge-1" : result_rouge["rouge1"], "rouge-L" : result_rouge["rougeL"]}
+            return result
+        
+        def regularize(text):
+            if '\n' in text:
+                lines = text.split('\n')
+                for line in lines:
+                    if len(line) > 1:
+                        return line
+            else:
+                return text
+
+        preds = []
+        gts = []
+        for line in total_outputs:
+            preds.append(regularize(line['generation']))
+            gts.append(line['output'])
+        res = compute_metrics(preds, gts)
+        print(res)

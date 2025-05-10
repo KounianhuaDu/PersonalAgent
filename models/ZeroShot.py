@@ -7,7 +7,7 @@ class ZeroShot:
         self.args = args
         
         print(args.arch)
-        if args.arch == "llama3":
+        if args.arch in ["llama3-8b", "llama3-3b"]:
             self.generator = LlamaChat(args.arch, args)
         elif args.arch == "deepseek":
             self.generator = DeepSeekChat(args.arch, args)
@@ -15,8 +15,8 @@ class ZeroShot:
             self.generator = GemmaChat(args.arch, args)
         elif args.arch == "gpt":
             self.generator = GPTChat(args.arch, args)
-        elif args.arch == "merge":
-            self.generator = MergeChat(args.arch, args)
+        elif args.arch == "qwen":
+            self.generator = QwenChat(args.arch, args)
         elif args.arch == "claude":
             self.generator = ClaudeChat(args.arch, args)
         
