@@ -68,7 +68,7 @@ class LlamaChat:
                         lora_dropout=args.lora_dropout,
                         target_modules=lora_target_modules,
                     )
-                    self.model = get_peft_model(self.model, peft_config)
+                    # self.model = get_peft_model(self.model, peft_config)
                     self.model = PeftModel.from_pretrained(self.model, args.check_point)
                     self.model = self.model.merge_and_unload()
                     print(Fore.RED + "Lora model set and merged.")
@@ -128,6 +128,7 @@ class LlamaChat:
                 model_inputs.input_ids,
                 attention_mask=attention_mask,
                 max_new_tokens=max_length,
+                #repetition_penalty=1.5,
                 pad_token_id=self.tokenizer.eos_token_id,  # Setting `pad_token_id` to `eos_token_id`:151643 for open-end generation.
             )
             generated_ids = [

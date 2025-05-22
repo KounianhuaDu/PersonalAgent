@@ -4,7 +4,8 @@ import os
 import pickle as pkl
 import json
 
-from .structured_prune import prune_model as prune_model_structured
+#from .structured_prune import prune_model as prune_model_structured
+from .Prune_FLAP import prune_flap as prune_model_structured
 from .unstructured_prune import prune_model as prune_model_unstructured
 
 from tqdm import tqdm
@@ -54,9 +55,13 @@ class PrunePredict:
             calibration_lines = random.sample(qa_lines, 128)
         else:
             calibration_lines = qa_lines + random.sample(profile_lines, min(128 - len(qa_lines), len(profile_lines)))
+        
+        #calibration_lines = random.sample(profile_lines, min(128, len(profile_lines)))
         print(f"Sampled {len(calibration_lines)} for calibration.")
         
         self.model, self.tokenizer = self.prune_func(self.args.base_model_addr, self.args.sparsity, calibration_lines, '')
+        print(self.model)
+        exit()
         total_params = sum(p.numel() for p in self.model.parameters())
         print(Fore.GREEN + 'Pruning ends.')
         print(Fore.GREEN + f'#Parameters of pruned models: {total_params / 1e9:.2f}B.')
@@ -80,46 +85,34 @@ class PrunePredict:
         
         full_prompt = prompt
         
-        if self.args.vllm:
-            # Generate the response
-            output = self.model.generate(
-                full_prompt,
-                # vllm get logits/ log_probs
-                sampling_params=SamplingParams(
-                    temperature=temperature,
-                    top_k=top_k,
-                    max_tokens=max_length,
-                ),
-            )
-            log_probs_for_generated_tokens = (
-                None  # Initialize to handle cases where it's not needed
-            )
-            message = output[0].outputs[0].text
-        else:
-            model_inputs = self.tokenizer([full_prompt], return_tensors="pt").to(
-                self.model.device
-            )
-            input_ids = self.tokenizer.encode(full_prompt, return_tensors="pt")
-            attention_mask = torch.ones(
-                input_ids.shape, dtype=torch.long, device=self.model.device
-            )
-            # Generate the response
-            #print(model_inputs.input_ids)
-            generated_ids = self.model.generate(
-                model_inputs.input_ids,
-                attention_mask=attention_mask,
-                max_new_tokens=max_length,
-                pad_token_id=self.tokenizer.eos_token_id,  # Setting `pad_token_id` to `eos_token_id`:151643 for open-end generation.
-            )
-            generated_ids = [
-                output_ids[len(input_ids) :]
-                for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
-            ]
+        model_inputs = self.tokenizer([full_prompt], return_tensors="pt").to(
+            self.model.device
+        )
+        input_ids = self.tokenizer.encode(full_prompt, return_tensors="pt")
+        attention_mask = torch.ones(
+            input_ids.shape, dtype=torch.long, device=self.model.device
+        )
+        # Generate the response
+        #print(model_inputs.input_ids)
+        #print(self.model)
+        total_params = sum(p.numel() for p in self.model.parameters())
+        '''print(Fore.GREEN + f'#Parameters of pruned models: {total_params / 1e9:.2f}B.')
+        exit()'''
+        generated_ids = self.model.generate(
+            model_inputs.input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_length,
+            pad_token_id=self.tokenizer.eos_token_id,  # Setting `pad_token_id` to `eos_token_id`:151643 for open-end generation.
+        )
+        generated_ids = [
+            output_ids[len(input_ids) :]
+            for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+        ]
 
-            # Decode the response
-            message = self.tokenizer.batch_decode(
-                generated_ids, skip_special_tokens=True
-            )[0]
+        # Decode the response
+        message = self.tokenizer.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )[0]
 
         return message
         

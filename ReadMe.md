@@ -58,3 +58,10 @@ For structured:
 ```bash
 python prune_and_predict --algo rag  --structured
 ```
+
+## OPPU and Per-Pcs
+For OPPU, run `./run_OPPU.sh`
+
+For Per-Pcs, run `./run_PerPcs.sh`
+
+To get final scores, run `eval_OPPU_PerPcs.py` after modifying the parameters inside

@@ -122,11 +122,8 @@ if __name__ == "__main__":
         contriver.eval()
         print('Contriever loaded.')
     
-    train_file = os.path.join(args.data, args.task, 'processed', 'train.pkl')
-    seen_test_file = os.path.join(args.data, args.task, 'processed', 'seen_test.pkl')
-    unseen_test_file = os.path.join(args.data, args.task, 'processed', 'unseen_test.pkl')
-    
-    to_be_ranked = ['train.pkl', 'seen_test.pkl', 'unseen_test.pkl']
+    #to_be_ranked = ['train.pkl', 'seen_test.pkl', 'unseen_test.pkl']
+    to_be_ranked = ["remain_train.pkl"]
     
     for file in to_be_ranked:
         with open(os.path.join(args.data, args.task, 'processed', file), 'rb') as f:

@@ -68,18 +68,33 @@ def create_metric_rouge():
     return compute_metrics
 
 def evaluate_task(predictions_dir):
-    with open(predictions_dir, 'rb') as f:
-        data = json.load(f)
-    
-    task_name = data['task']
-    lines = data['golds']
-    
-    preds = []
-    golds = []
-    for line in lines:
-        preds.append(line['generation'])
-        golds.append(line['output'])
-
+    if predictions_dir.endswith('.json'):
+        with open(predictions_dir, 'rb') as f:
+            data = json.load(f)
+        
+        task_name = data['task']
+        lines = data['golds']
+        
+        preds = []
+        golds = []
+        for line in lines:
+            preds.append(line['generation'])
+            golds.append(line['output'])
+    else:
+        data_files = os.listdir(predictions_dir)
+        preds = []
+        golds = []
+        for data_file in data_files:
+            with open(os.path.join(predictions_dir, data_file), 'r') as f:
+                data = json.load(f)
+                
+            task_name = data['task']
+            lines = data['golds']
+            for line in lines:
+                line['generation'].replace("<|begin_of_text|>", "")
+                preds.append(line['generation'])
+                golds.append(line['output'])
+                
     if task_name in ["LaMP_1", "LaMP_2"]:
         metric = create_metric_f1_accuracy(self._get_labels(task_name))
     elif task_name == "LaMP_3":
