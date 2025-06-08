@@ -478,62 +478,72 @@ def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_pat
 
     standarlization = lambda x: (x - torch.mean(x, axis=1, keepdim=True)) / torch.std(x, axis=1, keepdim=True)
 
+    threshold = torch.zeros(len(layers))
+    avg_metric  = torch.zeros(len(layers))
+    # import pdb
+    # pdb.set_trace()
+    for i in range(len(layers)):
+        attn_metric = attn_metric_list[i].unsqueeze(0)
+        attn_metric = standarlization(attn_metric)
+        attn_metric = attn_metric.reshape(1, -1, 128).mean(dim=2)
+        
+        mlp_metric = mlp_metric_list[i].unsqueeze(0)
+        mlp_metric = standarlization(mlp_metric)
+        
+        prune_metric = torch.cat([attn_metric.view(-1), mlp_metric.view(-1)])
+        sorted_prune, indices = torch.sort(prune_metric, descending=True)
+        compression_weight = torch.ones_like(indices)
+        compression_weight[indices < attn_metric.numel()] = 512.0 / 3
+        avg_metric[i] = sorted_prune[torch.argmin(torch.abs(torch.cumsum(compression_weight, 0) 
+                        - torch.sum(compression_weight)*(1 - sparsity_ratio)))]
+    # avg_metric = avg_metric / avg_metric.max()
+    max_sparsity = sparsity_ratio / (1 - avg_metric).mean()
+    layer_sparsity = max_sparsity * (1 - avg_metric) # 每一层的稀疏度
+    print("Layer Sparsity:", layer_sparsity)
+    import pdb
+    pdb.set_trace()
+    
+    for i in range(len(layers)):
+        attn_metric = attn_metric_list[i].unsqueeze(0)
+        attn_metric = standarlization(attn_metric)
+        attn_metric = attn_metric.reshape(1, -1, 128).mean(dim=2)
+        
+        mlp_metric = mlp_metric_list[i].unsqueeze(0)
+        mlp_metric = standarlization(mlp_metric)
+        
+        prune_metric = torch.cat([attn_metric.view(-1), mlp_metric.view(-1)])
+        sorted_prune, indices = torch.sort(prune_metric, descending=True)
+        compression_weight = torch.ones_like(indices)
+        compression_weight[indices < attn_metric.numel()] = 512.0 / 3
+        threshold[i] = sorted_prune[torch.argmin(torch.abs(torch.cumsum(compression_weight, 0) 
+                        - torch.sum(compression_weight)*(1 - layer_sparsity[i])))] # 按稀疏度选取threshold
+        
+    print("Threshold:", threshold)
+    
     attn_metric = torch.stack(attn_metric_list)
     attn_metric = standarlization(attn_metric)
     attn_metric = attn_metric.reshape(len(layers), -1, 128).mean(dim=2)
     
     mlp_metric = torch.stack(mlp_metric_list)
     mlp_metric = standarlization(mlp_metric)
-    
-    prune_metric = torch.cat([attn_metric.view(-1), mlp_metric.view(-1)])
-    sorted_prune, indices = torch.sort(prune_metric, descending=True)
-    compression_weight = torch.ones_like(indices)
-    compression_weight[indices < attn_metric.numel()] = 512.0 / 3
-    threshold = sorted_prune[torch.argmin(torch.abs(torch.cumsum(compression_weight, 0) - torch.sum(compression_weight)*(1 - sparsity_ratio)))]
-    print("Threshold:", threshold)
-    # threshold = torch.zeros(len(layers))
-    # # import pdb
-    # # pdb.set_trace()
-    # for i in range(len(layers)):
-    #     attn_metric = attn_metric_list[i].unsqueeze(0)
-    #     attn_metric = standarlization(attn_metric)
-    #     attn_metric = attn_metric.reshape(1, -1, 128).mean(dim=2)
-        
-    #     mlp_metric = mlp_metric_list[i].unsqueeze(0)
-    #     mlp_metric = standarlization(mlp_metric)
-        
-    #     prune_metric = torch.cat([attn_metric.view(-1), mlp_metric.view(-1)])
-    #     sorted_prune, indices = torch.sort(prune_metric, descending=True)
-    #     compression_weight = torch.ones_like(indices)
-    #     compression_weight[indices < attn_metric.numel()] = 512.0 / 3
-    #     threshold[i] = sorted_prune[torch.argmin(torch.abs(torch.cumsum(compression_weight, 0) 
-    #                     - torch.sum(compression_weight)*(1 - sparsity_ratio)))]
-    # print("Threshold:", threshold)
-    
-    # attn_metric = torch.stack(attn_metric_list)
-    # attn_metric = standarlization(attn_metric)
-    # attn_metric = attn_metric.reshape(len(layers), -1, 128).mean(dim=2)
-    
-    # mlp_metric = torch.stack(mlp_metric_list)
-    # mlp_metric = standarlization(mlp_metric)
         
     
     # attn_mask = (attn_metric > threshold)
-    mlp_mask = (mlp_metric > threshold)
+    # mlp_mask = (mlp_metric > threshold)
     
     
     
     for idx in range(len(layers)):
-        # mlp_mask = (mlp_metric > threshold[idx])
+        mlp_mask = (mlp_metric > threshold[idx])
         if f"model.layers.{idx}" in getattr(model, 'hf_device_map', {}): 
-            compress(model.model.layers[idx], threshold, attn_metric[idx], None, attn_baseline_inp_list[idx], None, model.hf_device_map[f"model.layers.{idx}"], unstr=False)
+            compress(model.model.layers[idx], threshold[idx], attn_metric[idx], None, attn_baseline_inp_list[idx], None, model.hf_device_map[f"model.layers.{idx}"], unstr=False)
         else:
-            compress(model.model.layers[idx], threshold, attn_metric[idx], None, attn_baseline_inp_list[idx], None, device, unstr=False)
+            compress(model.model.layers[idx], threshold[idx], attn_metric[idx], None, attn_baseline_inp_list[idx], None, device, unstr=False)
                 
         if f"model.layers.{idx}" in getattr(model, 'hf_device_map', {}): 
-            compress(model.model.layers[idx], threshold, None, mlp_mask[idx], None, mlp_baseline_inp_list[idx], model.hf_device_map[f"model.layers.{idx}"], unstr=False)
+            compress(model.model.layers[idx], threshold[idx], None, mlp_mask[idx], None, mlp_baseline_inp_list[idx], model.hf_device_map[f"model.layers.{idx}"], unstr=False)
         else:
-            compress(model.model.layers[idx], threshold, None, mlp_mask[idx], None, mlp_baseline_inp_list[idx], device, unstr=False)
+            compress(model.model.layers[idx], threshold[idx], None, mlp_mask[idx], None, mlp_baseline_inp_list[idx], device, unstr=False)
                 
     model.config.use_cache = use_cache 
     torch.cuda.empty_cache()

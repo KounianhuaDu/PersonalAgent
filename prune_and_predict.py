@@ -46,7 +46,7 @@ if __name__ == "__main__":
     
     ## Pruning arguments
     parser.add_argument(
-        "--sparsity", default = 0.3, type = float
+        "--sparsity", default = 0.5, type = float
     )
     parser.add_argument(
         "--structured", action="store_true", default=False
@@ -122,6 +122,7 @@ if __name__ == "__main__":
         for idx, u_id in enumerate(u_ids):
             print(Fore.RED + f"Trial {idx}.")
             outputs = model.prune_for_one_user(u_id)
+            continue
             output_dict[u_id] = outputs
             total_outputs += outputs
             os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}'), exist_ok=True)

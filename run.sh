@@ -29,8 +29,9 @@
 CUDA_VISIBLE_DEVICES=0 python run_generation.py \
     --arch llama3-3b \
     --resume \
-    --check_point ../LESS-main/out/llama3-3B-p1-lora/checkpoint-312 \
+    --check_point ../LESS-main/out/llama3-3B-p0.1-lora-seed0/checkpoint-124\
     --lora \
     --k 0 \
+    --eval
 
     

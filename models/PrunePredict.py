@@ -5,7 +5,7 @@ import pickle as pkl
 import json
 
 #from .structured_prune import prune_model as prune_model_structured
-from .Prune_FLAP import prune_flap as prune_model_structured
+from .Prune_FLAP_try import prune_flap as prune_model_structured
 from .unstructured_prune import prune_model as prune_model_unstructured
 
 from tqdm import tqdm
@@ -34,6 +34,7 @@ class PrunePredict:
         with open(os.path.join(args.data_path, args.dataset, 'processed', 'seen_test_ranked.json'), 'r') as f:
             self.test_ranked = json.load(f)
         
+        
     def prune_for_one_user(self, u_id):
         data = self.calibration_data[u_id]
         qa_lines = []
@@ -61,10 +62,10 @@ class PrunePredict:
         
         self.model, self.tokenizer = self.prune_func(self.args.base_model_addr, self.args.sparsity, calibration_lines, '')
         print(self.model)
-        exit()
         total_params = sum(p.numel() for p in self.model.parameters())
         print(Fore.GREEN + 'Pruning ends.')
         print(Fore.GREEN + f'#Parameters of pruned models: {total_params / 1e9:.2f}B.')
+        exit()
         
         test_lines = self.test_data[u_id]
         outs = []
