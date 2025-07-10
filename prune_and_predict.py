@@ -109,7 +109,9 @@ if __name__ == "__main__":
     print(args)
 
     
+    # args.base_model_addr = os.path.join(args.modelweight, 'Qwen3-8B')
     args.base_model_addr = os.path.join(args.modelweight, 'Meta-Llama-3.1-8B-Instruct')
+    eid = "python_rag_layerwise"
     
     if not args.eval:
         # Pruning
@@ -122,15 +124,15 @@ if __name__ == "__main__":
         for idx, u_id in enumerate(u_ids):
             print(Fore.RED + f"Trial {idx}.")
             outputs = model.prune_for_one_user(u_id)
-            continue
+            # continue
             output_dict[u_id] = outputs
             total_outputs += outputs
-            os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}'), exist_ok=True)
-            with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_res_{args.sparsity}_{args.structured}', f'{u_id}', 'gen.json'), 'w') as f:
+            os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_res_{args.sparsity}_{args.structured}', f'{u_id}'), exist_ok=True)
+            with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_res_{args.sparsity}_{args.structured}', f'{u_id}', 'gen.json'), 'w') as f:
                 json.dump(outputs, f)
         
-        os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_total_{args.sparsity}_{args.structured}'), exist_ok=True)
-        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'wb') as f:
+        os.makedirs(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_total_{args.sparsity}_{args.structured}'), exist_ok=True)
+        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'wb') as f:
                 pkl.dump(output_dict, f)
         
         print(Fore.RED + "All pruning finishes.")
@@ -139,7 +141,7 @@ if __name__ == "__main__":
         import evaluate
         from rouge import Rouge
         
-        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'Prune_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'rb') as f:
+        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'rb') as f:
             output_dict = pkl.load(f)
         
         total_outputs = []

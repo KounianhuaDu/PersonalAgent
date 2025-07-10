@@ -216,6 +216,7 @@ def prepare_calibration_input(model, dataloader, device):
             super().__init__()
             self.module = module
         def forward(self, inp, **kwargs):
+            # print(inp.shape)
             inps[cache['i']] = inp
             cache['i'] += 1
             cache['attention_mask'] = kwargs['attention_mask']
@@ -225,6 +226,7 @@ def prepare_calibration_input(model, dataloader, device):
     layers[0] = Catcher(layers[0])
     for batch in dataloader:
         try:
+            print(batch[0].shape)
             model(batch[0].to(device))
         except ValueError:
             pass 
@@ -234,6 +236,7 @@ def prepare_calibration_input(model, dataloader, device):
     attention_mask = cache['attention_mask']
     position_ids = cache['position_ids']
     model.config.use_cache = use_cache
+    print(inps.shape)
 
     return inps, outs, attention_mask, position_ids 
 
@@ -266,6 +269,7 @@ def compress(layer, threshold, attn_mask, mlp_mask, attn_mean_inp, mlp_mean_inp,
         retain_heads = torch.count_nonzero(temp_attn)
         num_key_value_groups = retain_heads // num_key_value_heads
         retain_heads = num_key_value_groups * num_key_value_heads
+        
         
         _ , indices = torch.topk(attn_mask, retain_heads)
         attn_mask = torch.zeros_like(temp_attn)
@@ -316,6 +320,9 @@ def compress(layer, threshold, attn_mask, mlp_mask, attn_mean_inp, mlp_mean_inp,
             
         # Assign the pruned weights
         layer.self_attn.o_proj.weight.data = output_weight
+        # if (attn_mask.sum().item() == 0):
+        #     import pdb
+        #     pdb.set_trace()
 
     # MLP Weight Pruning
     if mlp_mask is not None:
@@ -385,6 +392,7 @@ def replace_linear(old_layer, pruned_weight, pruned_bias=None):
 def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_path):
     # Set original model and tokenizer.
     model = LlamaForCausalLM.from_pretrained(base_model_addr)
+    tokenizer = AutoTokenizer.from_pretrained(base_model_addr)
     print(model)
     for i in range(32):
         model.model.layers[i].self_attn.o_proj.bias = torch.nn.Parameter(torch.zeros((4096,))).to(model.device)
@@ -395,7 +403,6 @@ def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_pat
     device = torch.device("cuda:0")
     model.to(device)
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(base_model_addr)
     tokenizer.pad_token = tokenizer.eos_token
     
     use_cache = model.config.use_cache 
@@ -420,6 +427,7 @@ def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_pat
         query_len = tokenizer(train_item, return_tensors='pt').input_ids.shape[1]
         tar[:, :query_len] = -100
         dataloader.append((inp, tar))
+        print(inp.shape)
     #dataloader = process_cali(calibratio)
     print("dataset loading complete")
     
@@ -459,6 +467,7 @@ def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_pat
         for j in range(nsamples):
             with torch.no_grad():
                 outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        # print(inp.shape, outs.shape)
         for h in handles:
             h.remove()
 
@@ -480,7 +489,7 @@ def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_pat
 
     attn_metric = torch.stack(attn_metric_list)
     attn_metric = standarlization(attn_metric)
-    attn_metric = attn_metric.reshape(len(layers), -1, 128).mean(dim=2)
+    attn_metric = attn_metric.reshape(len(layers), -1, 128).mean(dim=2) # 【32， 32】
     
     mlp_metric = torch.stack(mlp_metric_list)
     mlp_metric = standarlization(mlp_metric)

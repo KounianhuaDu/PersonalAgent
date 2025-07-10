@@ -8,6 +8,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 import pickle
 import sys
+import random
 sys.path.append('..')
 batch_size = 32
 
@@ -48,36 +49,46 @@ def extract_article(text):
 
     return extracted_string
 
-def cluster(candidate_data):
+def cluster(calibration_data):
     # Step 1: Load the DeBERTa-v3-base tokenizer and model
-    tokenizer = DebertaV2Tokenizer.from_pretrained('../../model_weights/deberta-v3-large')
-    model = DebertaV2Model.from_pretrained('../../model_weights/deberta-v3-large').cuda()
+    tokenizer = DebertaV2Tokenizer.from_pretrained('../model_weights/deberta-v3-large')
+    model = DebertaV2Model.from_pretrained('../model_weights/deberta-v3-large').cuda()
+    task_name = 'cluster_data'
 
     all_user_emb = []
-    all_len = []
-    for user in tqdm(anchor_candidate.values()):
+    # all_len = []
+    u_ids = list(calibration_data.keys())
+    processed_data = dict()
+    for user in u_ids:
 
         history_embeddings_list = []
         visible_history_list = []
+        qa_lines = []
         ids = []
-        for samples in user:
+        for samples in calibration_data[user]:
+            ids.append(samples['id'])
+            qa_lines.append(samples)
             for s in samples['profile']:
                 if s['id'] not in ids:
                     ids.append(s['id'])
                     visible_history_list.append(s)
-        all_len.append(len(ids))
-        for p in visible_history_list:
-            for key, value in p.items():
-                p[key] = get_first_k_tokens(p[key], 368)
+        prompt = "Generate a headline for the following article: "
+        profile_lines = [{'input': prompt + line['text'], 'output': line['title']} for line in visible_history_list]
+        # all_len.append(len(ids))
+        # for p in visible_history_list:
+        #     for key, value in p.items():
+        #         p[key] = get_first_k_tokens(p[key], 368)
+        if len(qa_lines)>128:
+            calibration_lines = random.sample(qa_lines, 128)
+        else:
+            calibration_lines = qa_lines + random.sample(profile_lines, min(128 - len(qa_lines), len(profile_lines)))
+        processed_data[user] = calibration_lines
+        # user_nl_history_list_batched = split_batch(user_nl_history_list, batch_size)
 
-        user_nl_history_list = [prompt_template[args.task_name]['retrieval_history'].format(**p) for p in visible_history_list]
-
-        user_nl_history_list_batched = split_batch(user_nl_history_list, batch_size)
-
-        for batch in tqdm(user_nl_history_list_batched):
+        for batch in tqdm(calibration_lines):
 
             with torch.no_grad():
-                inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=512).to(model.device)
+                inputs = tokenizer(batch['input'] + batch['output'], return_tensors="pt", padding=True, truncation=True, max_length=512).to(model.device)
                 outputs = model(**inputs)
 
                 last_hidden_states = outputs.last_hidden_state
@@ -101,34 +112,32 @@ def cluster(candidate_data):
     all_user_emb = torch.cat(all_user_emb, dim=0)
     print(all_user_emb.size())
 
-    Path(f'./{args.task_name}/').mkdir(parents=True, exist_ok=True)
+    Path(f'./{task_name}/').mkdir(parents=True, exist_ok=True)
 
-    torch.save(all_user_emb, f'./{args.task_name}/user_history_emb.pt')
+    torch.save(all_user_emb, f'./{task_name}/user_history_emb.pt')
 
 
     emb = all_user_emb.numpy()
 
-    k=args.k
+    k=50
     kmeans = KMeans(n_clusters=k, random_state=0, max_iter=3000).fit(emb)
     labels = kmeans.labels_
 
-    selected_indices = []
+    prune_data = dict()
 
     for i in range(k):
         cluster_indices = np.where(labels == i)[0]
-        max_len = 0
+        all_data = []
         for idx in cluster_indices:
-            if all_len[idx] > max_len:
-                max_len = all_len[idx]
-                selected_index = idx
-        print(max_len)
-
-        if max_len>10:
-            # selected_index = random.choice(cluster_indices)
-            selected_indices.append(selected_index)
-
-    print(len(selected_indices))
-
-    torch.save(selected_indices, f'./{args.task_name}/anchor_user_idx.pt')
+            uid = u_ids[idx]
+            all_data += processed_data[uid]
+        for idx in cluster_indices:
+            uid = u_ids[idx]
+            prune_data[uid] = {'self_data': processed_data[uid], 'cluster_data': all_data}
+        print(len(all_data), len(cluster_indices))
+        
+    with open(f"./{task_name}/prune_data.json", 'w') as f:
+        json.dump(prune_data, f, indent=4)
 
     print('Done!')
+    return prune_data

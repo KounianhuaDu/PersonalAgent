@@ -14,14 +14,6 @@ if [[ ! -d $output_dir ]]; then
 fi
 
 train_files="$data_dir/LaMP_4/processed/remain_train.pkl"
-    
-
-# use fsdp for large models
-if [[ $model_path == "meta-llama/Llama-2-13b-hf" ]]; then
-    base_training_args="$base_training_args --fsdp 'full_shard auto_wrap' --fsdp_config llama2_13b_finetune"
-    elif [[ $model_path == "mistralai/Mistral-7B-v0.1" ]]; then
-    base_training_args="$base_training_args --fsdp 'full_shard auto_wrap' --fsdp_config mistral_7b_finetune"
-fi
 
 # wramup lora
 training_args="$base_training_args \
@@ -111,13 +103,6 @@ output_dir=./out/${job_name}
 if [[ ! -d $output_dir ]]; then
     mkdir -p $output_dir
 fi
-
-# use fsdp for large models
-#if [[ $model_path == "meta-llama/Llama-2-13b-hf" ]]; then
-#    base_training_args="$base_training_args --fsdp 'full_shard auto_wrap' --fsdp_config llama2_13b_finetune"
-#    elif [[ $model_path == "mistralai/Mistral-7B-v0.1" ]]; then
-#    base_training_args="$base_training_args --fsdp 'full_shard auto_wrap' --fsdp_config mistral_7b_finetune"
-#fi
 
 # final lora
 training_args="$base_training_args \
