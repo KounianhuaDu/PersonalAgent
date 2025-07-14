@@ -105,11 +105,13 @@ if __name__ == "__main__":
     sae = Sae.load_from_disk(args.sae_path)
 
     hf_model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path, device_map="auto")
+    print('hf model ready.')
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     model = HookedTransformer.from_pretrained(
         args.model_name_or_path,
-        device=device,
-        local=True,
+        #model_name='meta-llama/Llama-3.1-8B',
+        #device=device,
+        #local=True,
         hf_model=hf_model,
         # torch_dtype=torch.float32,
         # torch_dtype=torch.bfloat16,
