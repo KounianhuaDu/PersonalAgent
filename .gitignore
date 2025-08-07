@@ -9,3 +9,4 @@ wandb
 adapter_checkpoints
 hydra_adapter_checkpoints
 tuned_models
+STA/cluster_data
