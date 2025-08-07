@@ -11,13 +11,16 @@ from .unstructured_prune import prune_model as prune_model_unstructured
 from tqdm import tqdm
 import random
 import torch
-from transformers import DebertaV2Tokenizer, DebertaV2Model
+from transformers import DebertaV2Tokenizer, DebertaV2Model, AutoModelForCausalLM, AutoTokenizer
 from pathlib import Path
 import argparse
 from sklearn.cluster import KMeans
 import numpy as np
 import sys
 import re
+from rouge import Rouge
+import time
+from copy import deepcopy
 sys.path.append('..')
 random.seed(42)
 
@@ -44,7 +47,13 @@ class PrunePredict:
             self.test_ranked = json.load(f)
             
         # exit()
-        self.cluster_dir = "./cluster_data/prune_python_data_rag.json"
+        self.cluster_dir = "../pa_back/cluster_data/prune_python_data_rag.json"
+        self.rouge_threshold = 0.15
+        self.caa_dir = f"../pa_back/caa_data/caa_{self.format}_{self.args.dataset}_{self.rouge_threshold}.json"
+        if not os.path.exists(self.caa_dir):
+            print("Only generate negative samples now. Then exit.")
+            self.get_neg_samples(self.calibration_data)
+            exit()
         if not os.path.exists(self.cluster_dir):
             self.cluster(self.calibration_data)
         with open(self.cluster_dir, 'r') as f:
@@ -143,10 +152,12 @@ class PrunePredict:
         
         
         
-    def generate(self, problem_instance):
+    def generate(self, problem_instance, raw=False):
         p_id = problem_instance['id']
         use_example = True if self.format == 'json' else False
-        if self.args.algo == 'zeroshot':
+        if raw:
+            raw_prompt = problem_instance['input']
+        elif self.args.algo == 'zeroshot':
             raw_prompt = self.build_zeroshot_instruction(problem_instance['input'], use_example=use_example)
         elif self.args.algo == 'rag':
             ranked_his = self.get_his(p_id, self.args.k)
@@ -190,8 +201,11 @@ class PrunePredict:
         q_a_history = '\n'.join(q_a_history)
         return q_a_history
     
-    def get_calibration_his(self, p_id, k):
-        ranked_profiles = self.calibration_ranked[p_id][:k]
+    def get_calibration_his(self, p_id, k, random_sample=False):
+        if random_sample:
+            ranked_profiles = random.sample(self.calibration_ranked[p_id], k)
+        else:
+            ranked_profiles = self.calibration_ranked[p_id][:k]
         
         q_a_history = []
         for idx, sample in enumerate(ranked_profiles):
@@ -384,5 +398,57 @@ print("Your generated headline here")
             json.dump(prune_data, f, indent=4)
 
         print('Clustering done!')
+        
+    def get_neg_samples(self, calibration_data):
+        # if not os.path.exists(self.caa_dir):
+        #     os.makedirs(self.caa_dir)
+        num_generate = 2
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.args.base_model_addr,
+            device_map='auto',
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.args.base_model_addr,
+            use_fast=False,
+        )
+        pos_neg_samples = {}
+        all_samples = 0
+        for user in tqdm(self.u_ids):
+            pos_neg_samples[user] = []
+            qa_lines = []
+            for samples in calibration_data[user]:
+                for i in range(num_generate):
+                    samples_cp = deepcopy(samples)
+                    ranked_his = self.get_calibration_his(samples_cp['id'], self.args.k, random_sample=True)
+                    raw_prompt = self.build_rag_instruction(samples_cp['input'], ranked_his)
+                    # raw_prompt = self.build_zeroshot_instruction(samples['input'])
+                    samples_cp['rag_input'] = raw_prompt
+                    qa_lines.append(samples_cp)
+            qa_lines = [{'input': line['rag_input'], 'output': self.build_answer(line['output']), 
+                         'id': line['id']} for line in qa_lines] 
+            if len(qa_lines) > 200:
+                calibration_lines = random.sample(qa_lines, 200)
+            all_samples += len(qa_lines)
+            
+            for line in qa_lines:
+                caa_line = {'question': line['input'], 'chosen': line['output']}
+                # print(line['input'])
+                output_dict = self.generate(line, raw=True)
+                if not output_dict['generation']:
+                    continue
+                caa_line['rejected'] = self.build_answer(output_dict['generation'])
+                caa_line['rouge'] = Rouge().get_scores(caa_line['rejected'], caa_line['chosen'])[0]['rouge-l']['f']
+                print(caa_line['rouge'])
+                if (caa_line['rouge'] < self.rouge_threshold):
+                    pos_neg_samples[user].append(caa_line)
+                
+            # num_keep_samples = int(len(pos_neg_samples[user]) * 0.5)
+            # pos_neg_samples[user].sort(key=lambda x: x['rouge'])
+            # pos_neg_samples[user] = pos_neg_samples[user][:num_keep_samples]
+          
+        print(all_samples)   
+        with open(self.caa_dir, 'w') as f:
+            json.dump(pos_neg_samples, f, indent=4)
+        # return neg_samples
         
         

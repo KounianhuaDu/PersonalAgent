@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset", default="LaMP_4", help="Dataset to use, default: APPS"
     )
-    parser.add_argument("--data_path", default="./data", help="Path to save the data")
+    parser.add_argument("--data_path", default="../pa_back/data", help="Path to save the data")
     
     ## output & log
     parser.add_argument(
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--arch", default="llama3")
     parser.add_argument(
         "--modelweight",
-        default="../model_weights",
+        default="../model_weights/fix",
         help="Path to save the model weights.",
     )
     
@@ -141,8 +141,10 @@ if __name__ == "__main__":
         import evaluate
         from rouge import Rouge
         
-        with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'rb') as f:
-            output_dict = pkl.load(f)
+        # with open(os.path.join(args.out_path, "llama-prune", args.dataset, f'{eid}_total_{args.sparsity}_{args.structured}', 'gen.pkl'), 'rb') as f:
+        #     output_dict = pkl.load(f)
+        with open("./STA/results/llama-3.1_results_safety/eval_LaMP_4/caa__layer20_raw.json", 'r') as f:
+            output_dict = json.load(f)
         
         total_outputs = []
         for key, values in output_dict.items():

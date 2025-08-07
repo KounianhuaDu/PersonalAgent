@@ -98,7 +98,7 @@ class LlamaChat:
             + prompt
             + "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
         )
-        # print(Fore.GREEN + full_prompt)
+        print(Fore.GREEN + full_prompt)
 
         if self.args.vllm:
             # Generate the response
@@ -142,3 +142,4 @@ class LlamaChat:
             )[0]
 
         return message
+    

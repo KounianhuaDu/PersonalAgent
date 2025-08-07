@@ -49,8 +49,9 @@ class RAG:
         ranked_his = self.get_his(p_id, k)
         
         if not self.enhanced:
-            raw_prompt = self.build_instruction(problem_instance['input'], ranked_his)
+            raw_prompt = self.build_rag_instruction(problem_instance['input'], ranked_his)
             output = self.generator.generate_response_api(raw_prompt, top_k=1)
+            print(Fore.YELLOW + output)
             output_dict = {
                 'id': p_id,
                 'generation': output,
@@ -61,6 +62,7 @@ class RAG:
             output = self.generator.generate_response_api(raw_prompt, top_k=1)
             if output:
                 output = self.extract(output)
+                print(Fore.YELLOW + output)
             else:
                 print(f'error for {p_id}')
                 output = ['\n','\n','\n']
@@ -135,5 +137,28 @@ class RAG:
 
         return top_lines_text
 
+    def build_rag_instruction(self, prompt, his, form='raw', use_example=False):
+        inp = f"Generate a headline for the following article: {prompt}" if not prompt.startswith('Generate') else prompt
+        inp += f"For your reference, here are the user's past QA pairs:\n {his}\n"
+        if form == 'raw':
+            inp += "Please only generate the most suitable one headline, except which no extra text is needed."
+        elif form == 'json':
+            inp += """\nFormat the output in json format like this:  
+    ```json
+    {"headline": Your generated headline here}  
+    ```  """
+        elif form == 'python':
+            inp += """\nFormat the output in python code like this:
+    ```python
+    print("Your generated headline here")
+    ```"""
+        if use_example:
+            inp += f"""\nFor your reference, here is an example of a QA pair:\n
+                Q: {example['input']}
+                A: {example['output']}
+            """
+        # inp += "\nYour answer here:"
+
+        return inp
 
         

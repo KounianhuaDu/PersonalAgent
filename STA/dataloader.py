@@ -6,6 +6,8 @@ import numpy as np
 import random
 import re
 import pdb
+import json
+import pickle
 
 class BaseDataset:
     def __init__(self):
@@ -154,31 +156,45 @@ class GenerationDataset(BaseDataset):
     ):
         data_file = os.path.join(
             data_path,
-            data_name,
-            f"{split}.csv",
+            f"{data_name}.json",
         )
+        if os.path.isfile(data_file):
+            with open(data_file, 'r') as f:
+                data_file = json.load(f)
+        else:
+            data_file = os.path.join(
+                data_path,
+                f"{data_name}.pkl",
+            )
+            with open(data_file, 'r') as f:
+                data_file = pickle.load(f)
 
-        dataset = load_dataset("csv", data_files=data_file, split="train")
+        # uids = list(data_file.keys())
+        # dataset = {}
+        # for uid, all_data in data_file.items():
+        #     user_dataset = []
+        #     for data in all_data['self_data']:
+        #         process_data = {}
+        #         process_data['question'] = data['input']
+        #         process_data['chosen'] = data['output']
+        #         neg_uid = uid
+        #         for i in range(3):
+        #             while neg_uid == uid:
+        #                 neg_uid = random.choice(list(data_file.keys()))
+        #             neg_output = random.choice(data_file[neg_uid]['self_data'])['output']
+        #             process_data['rejected'] = neg_output
+        #             user_dataset.append(process_data)
+        #     dataset[uid] = user_dataset
+                
+        #     dataset = Dataset.from_list(dataset)
+        return data_file
 
-        original_columns = dataset.column_names
-
-        def return_prompt_and_responses(samples) -> Dict[str, str]:
-            questions = samples["question"]
-            prompts = []
-            for question in samples["question"]:
-                prompts.append(SYSTEM_PROMPT.format(question))
-            return {
-                "question": questions,
-                "prompt": prompts,
-                "chosen": [" " + (s if s is not None else "") for s in samples["matching"]],
-                "rejected": [" " + (s if s is not None else "") for s in samples["not_matching"]],
-            }
-
-        return dataset.map(
-            return_prompt_and_responses,
-            batched=True,
-            remove_columns=original_columns,
-        )
-
+    def get_data_for_caa_eval(self, data_name, data_path):
+        with open(os.path.join(data_path, data_name, 'processed', 'seen_test.pkl'), 'rb') as f:
+            test_data = pickle.load(f)
+        with open(os.path.join(data_path, data_name, 'processed', 'seen_test_ranked.json'), 'r') as f:
+            test_ranked = json.load(f)
+            
+        return test_data, test_ranked
 
     

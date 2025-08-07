@@ -44,14 +44,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset", default="LaMP_4", help="Dataset to use, default: APPS"
     )
-    parser.add_argument("--data_path", default="./data", help="Path to save the data")
+    parser.add_argument("--data_path", default="../pa_back/data", help="Path to save the data")
     
     ## output & log
     parser.add_argument(
-        "--out_path", default="./output/generation", help="Path to save the output"
+        "--out_path", default="../pa_back/output/generation", help="Path to save the output"
     )
     parser.add_argument(
-        "--res_path", default="./output/res", help="Path to save the output"
+        "--res_path", default="../pa_back/output/res", help="Path to save the output"
     )
 
     ## backbone LLM

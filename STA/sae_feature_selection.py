@@ -117,6 +117,7 @@ if __name__ == "__main__":
         # torch_dtype=torch.bfloat16,
     )
     model.eval()
+    print(model)
     # tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
 
     # set select fucntion
@@ -127,7 +128,7 @@ if __name__ == "__main__":
     selection_record = {}
 
     prompts, neg_prompts, prefix_prompts = [], [], []
-    # exit()
+    exit()
     
     with open(args.data_file, 'r') as f:
         prune_data = json.load(f)

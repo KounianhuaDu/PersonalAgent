@@ -189,10 +189,11 @@ def load_sae_from_dir(sae_dir: Path | str, device: str = "cpu") -> SAE:
         k for k in cfg.keys() if k not in LanguageModelSAERunnerConfig.__annotations__.keys()
     ]
     derivative_values = [cfg[x] for x in derivatives]
-    for x in derivatives:
-        del cfg[x]
+    # for x in derivatives:
+    #     del cfg[x]
             
     runner_config = LanguageModelSAERunnerConfig(**cfg)
+    # pdb.set_trace()
     # print(runner_config.__dict__)
     # assert all(
     #     [

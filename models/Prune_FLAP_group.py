@@ -33,8 +33,8 @@ def get_c4(nsamples, seed, seqlen, tokenizer):
     # Load train and validation datasets
     # traindata = load_dataset('allenai/c4', 'allenai--c4', data_files={'train': 'en/c4-train.00000-of-01024.json.gz'}, split='train')
     # valdata = load_dataset('allenai/c4', 'allenai--c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation')
-    traindata = load_dataset('json', data_files={'train': 'data/c4-train.00000-of-01024.json.gz'}, split='train')
-    valdata = load_dataset('json', data_files={'validation': 'data/c4-validation.00000-of-00008.json.gz'}, split='validation')
+    traindata = load_dataset('json', data_files={'train': '../pa_back/data/c4-train.00000-of-01024.json.gz'}, split='train')
+    valdata = load_dataset('json', data_files={'validation': '../pa_back/data/c4-validation.00000-of-00008.json.gz'}, split='validation')
     
     # Generate samples from training set using random seed and specified sequence length
     random.seed(seed)
@@ -439,9 +439,9 @@ def prune_flap(base_model_addr, sparsity_ratio, calibration_data, save_model_pat
     nsamples = 128
     dataloader, testloader = get_c4(nsamples, seed=42, seqlen=model.seqlen, tokenizer=tokenizer)
     print("dataset loading complete")
-    # with torch.no_grad():
-    #     print(eval_ppl_wikitext(model, testloader, bs=1, device=device))
-    #     exit()
+    with torch.no_grad():
+        print(eval_ppl_wikitext(model, testloader, bs=1, device=device))
+        exit()
     
     with torch.no_grad():
         inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
